@@ -1,0 +1,3 @@
+*.o
+aes_tests
+*.sw[po]
