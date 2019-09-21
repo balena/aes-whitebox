@@ -1,3 +1,7 @@
 *.o
-aes_tests
+*.a
+aes128_tests
+aes128_oracle_gen
+aes128_oracle_tables.c
 *.sw[po]
+vgcore.*

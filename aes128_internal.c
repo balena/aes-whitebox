@@ -1,9 +1,3 @@
-#include <stdio.h>
-#include <string.h>
-#include <sodium.h>
-
-#include "aes.h"
-
 /* The least significant byte of the word is rotated to the end. */
 #define KE_ROTWORD(x) (((x) << 8) | ((x) >> 24))
 
@@ -195,7 +189,7 @@ static void AddRoundKey(uint8_t state[4][4], const uint32_t roundKey[4]) {
       state[j][i] ^= roundKey[i] >> ((3 - j) * 8);
 }
 
-// THis second version already considers the state already shifted by ShiftRows
+// This second version already considers the state already shifted by ShiftRows
 static void AddRoundKeyAfterShift(uint8_t state[4][4], const uint32_t roundKey[4]) {
   // Subkeys 1 to 4, but already shifted
   for (unsigned i = 0; i < 4; i++)
@@ -215,56 +209,6 @@ static void InvSubBytes(uint8_t state[4][4]) {
   for (int i = 0; i < 4; i++)
     for (int j = 0; j < 4; j++)
       state[i][j] = InvSbox[state[i][j] >> 4][state[i][j] & 0x0f];
-}
-
-// Calculate the T-boxes, which is a combination of the AddRoundKeyAfterShift
-// and the SubBytes functions.
-static void CalculateTboxes(const uint32_t roundKey[44],
-    uint8_t Tboxes[10][4][4][256]) {
-  for (int x = 0; x < 256; x++) {
-    for (int r = 0; r < 10; r++) {
-      uint8_t state[4][4] = {
-        { x, x, x, x },
-        { x, x, x, x },
-        { x, x, x, x },
-        { x, x, x, x }
-      };
-      AddRoundKeyAfterShift(state, &roundKey[r*4]);
-      SubBytes(state);
-      if (r == 9) {
-        AddRoundKey(state, &roundKey[40]);
-      }
-      for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-          Tboxes[r][i][j][x] = state[i][j];
-        }
-      }
-    }
-  }
-}
-
-static void CalculateInvTboxes(const uint32_t roundKey[16],
-    uint8_t InvTboxes[10][4][4][256]) {
-  for (int x = 0; x < 256; x++) {
-    for (int r = 0; r < 10; r++) {
-      uint8_t state[4][4] = {
-        { x, x, x, x },
-        { x, x, x, x },
-        { x, x, x, x },
-        { x, x, x, x }
-      };
-      if (r == 9) {
-        AddRoundKey(state, &roundKey[40]);
-      }
-      InvSubBytes(state);
-      AddRoundKeyAfterShift(state, &roundKey[r*4]);
-      for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-          InvTboxes[r][i][j][x] = state[i][j];
-        }
-      }
-    }
-  }
 }
 
 // Performs the ShiftRows step. All rows are shifted cylindrically to the left.
@@ -338,46 +282,6 @@ static void MixColumns(uint8_t state[4][4]) {
   }
 }
 
-static void CalculateTy(uint8_t Ty[4][256][4]) {
-  for (int x = 0; x < 256; x++) {
-    Ty[0][x][0] = gf_mul[x][0];
-    Ty[0][x][1] = gf_mul[x][1];
-    Ty[0][x][2] = x;
-    Ty[0][x][3] = x;
-
-    Ty[1][x][0] = x;
-    Ty[1][x][1] = gf_mul[x][0];
-    Ty[1][x][2] = gf_mul[x][1];
-    Ty[1][x][3] = x;
-    
-    Ty[2][x][0] = x;
-    Ty[2][x][1] = x;
-    Ty[2][x][2] = gf_mul[x][0];
-    Ty[2][x][3] = gf_mul[x][1];
-    
-    Ty[3][x][0] = gf_mul[x][1];
-    Ty[3][x][1] = x;
-    Ty[3][x][2] = x;
-    Ty[3][x][3] = gf_mul[x][0];
-  }
-}
-
-static void CalculateTyBoxes(const uint8_t Tboxes[10][4][4][256],
-    const uint8_t Ty[4][256][4], uint8_t Tyboxes[9][4][4][256][4],
-    uint8_t Tboxes10[4][4][256]) {
-  for (int r = 0; r < 9; ++r)
-    for (int i = 0; i < 4; ++i)
-      for (int j = 0; j < 4; ++j)
-        for (int x = 0; x < 256; x++)
-          for (int k = 0; k < 4; k++)
-            Tyboxes[r][i][j][x][k] = Ty[i][Tboxes[r][k][j][x]][k];
-
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      for (int x = 0; x < 256; x++)
-        Tboxes10[i][j][x] = Tboxes[9][i][j][x];
-}
-
 static void InvMixColumns(uint8_t state[4][4]) {
   // Columns 1 to 4
   for (int i = 0; i < 4; i++) {
@@ -391,30 +295,6 @@ static void InvMixColumns(uint8_t state[4][4]) {
   }
 }
 
-static void CalculateInvTy(uint8_t InvTy[4][256][4]) {
-  for (int x = 0; x < 256; x++) {
-    InvTy[0][x][0] = gf_mul[x][5];
-    InvTy[0][x][1] = gf_mul[x][3];
-    InvTy[0][x][2] = gf_mul[x][4];
-    InvTy[0][x][3] = gf_mul[x][2];
-
-    InvTy[1][x][0] = gf_mul[x][2];
-    InvTy[1][x][1] = gf_mul[x][5];
-    InvTy[1][x][2] = gf_mul[x][3];
-    InvTy[1][x][3] = gf_mul[x][4];
-
-    InvTy[2][x][0] = gf_mul[x][4];
-    InvTy[2][x][1] = gf_mul[x][2];
-    InvTy[2][x][2] = gf_mul[x][5];
-    InvTy[2][x][3] = gf_mul[x][3];
-
-    InvTy[3][x][0] = gf_mul[x][3];
-    InvTy[3][x][1] = gf_mul[x][4];
-    InvTy[3][x][2] = gf_mul[x][2];
-    InvTy[3][x][3] = gf_mul[x][5];
-  }
-}
-
 // Substitutes a word using the AES S-Box.
 static uint32_t SubWord(uint32_t word) {
   return (int)(Sbox[(word >> 4) & 0x0000000f][word & 0x0000000f])
@@ -423,9 +303,10 @@ static uint32_t SubWord(uint32_t word) {
        + (int)(Sbox[(word >> 28) & 0x0000000f][(word >> 24) & 0x0000000f] << 24);
 }
 
-// Performs the action of generating the keys that will be used in every round of
-// encryption. "key" is the user-supplied input key, "w" is the output key schedule.
-void aes_key_expand(const uint8_t key[16],
+// Performs the action of generating the keys that will be used in every round
+// of encryption. "key" is the user-supplied input key, "w" is the output key
+// schedule.
+static void ExpandKeys(const uint8_t key[16],
     uint32_t w[44]) {
   int Nb = 4, Nr = 10, Nk = 4, i;
   uint32_t temp, Rcon[] = {
@@ -449,194 +330,4 @@ void aes_key_expand(const uint8_t key[16],
       temp = SubWord(temp);
     w[i] = w[i-Nk] ^ temp;
   }
-}
-
-void aes_encrypt(const uint8_t in[16],
-    uint8_t out[16],
-    const uint32_t roundKey[44]) {
-  uint8_t state[4][4];
-
-  // Copy input array (should be 16 bytes long) to a matrix (sequential bytes are ordered
-  // by row, not col) called "state" for processing.
-  // *** Implementation note: The official AES documentation references the state by
-  // column, then row. Accessing an element in C requires row then column. Thus, all state
-  // references in AES must have the column and row indexes reversed for C implementation.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      state[j][i] = in[i*4 + j];
-
-  // Perform the necessary number of rounds. The round key is added first.
-  // The last round does not perform the MixColumns step.
-  for (int r = 0; r < 9; r++) {
-    ShiftRows(state);
-    AddRoundKeyAfterShift(state, &roundKey[r*4]);
-    SubBytes(state);
-    MixColumns(state);
-  }
-  ShiftRows(state);
-  AddRoundKeyAfterShift(state, &roundKey[36]);
-  SubBytes(state);
-  AddRoundKey(state, &roundKey[40]);
-
-  // Copy the state to the output array.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      out[i*4 + j] = state[j][i];
-}
-
-void aes_decrypt(const uint8_t in[16],
-    uint8_t out[16],
-    const uint32_t roundKey[44]) {
-  uint8_t state[4][4];
-
-  // Copy the input to the state.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      state[j][i] = in[i*4 + j];
-
-  // Perform the necessary number of rounds. The round key is added first.
-  // The last round does not perform the MixColumns step.
-  AddRoundKey(state, &roundKey[40]);
-  InvSubBytes(state);
-  AddRoundKeyAfterShift(state, &roundKey[36]);
-  InvShiftRows(state);
-  for (int r = 9; r > 0; r--) {
-    InvMixColumns(state);
-    InvSubBytes(state);
-    AddRoundKeyAfterShift(state, &roundKey[(r-1)*4]);
-    InvShiftRows(state);
-  }
-
-  // Copy the state to the output array.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      out[i*4 + j] = state[j][i];
-}
-
-void aes_gen_xor_tables(uint8_t Xor[16][16]) {
-  for (int i = 0; i < 16; i++)
-    for (int j = 0; j < 16; j++)
-      Xor[i][j] = i ^ j;
-}
-
-void aes_encrypt_gen_tables(uint8_t Tyboxes[9][4][4][256][4],
-    uint8_t Tboxes10[4][4][256], const uint32_t roundKey[44]) {
-  uint8_t Tboxes[10][4][4][256];
-  uint8_t Ty[4][256][4];
-  CalculateTboxes(roundKey, Tboxes);
-  CalculateTy(Ty);
-  CalculateTyBoxes(Tboxes, Ty, Tyboxes, Tboxes10);
-}
-
-void aes_decrypt_gen_tables(uint8_t InvTboxes[10][4][4][256],
-    uint8_t InvTy[4][256][4], const uint32_t roundKey[44]) {
-  CalculateInvTboxes(roundKey, InvTboxes);
-  CalculateInvTy(InvTy);
-}
-
-void aes_table_protect(uint8_t Tboxes[10][4][4][256],
-    uint8_t Ty[4][256][4],
-    uint8_t InvTboxes[10][4][4][256],
-    uint8_t InvTy[4][256][4]) {
-  uint8_t random_vector[4*4*256];
-  randombytes_buf(random_vector, sizeof(random_vector));
-  // TODO
-}
-
-void aes_table_encrypt(const uint8_t in[16],
-    uint8_t out[16],
-    uint8_t Tyboxes[9][4][4][256][4],
-    uint8_t Tboxes10[4][4][256],
-    const uint8_t Xor[16][16]) {
-  uint8_t state[4][4];
-
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      state[j][i] = in[i*4 + j];
-
-  // Perform the necessary number of rounds. The round key is added first.
-  // The last round does not perform the MixColumns step.
-  for (int r = 0; r < 9; r++) {
-    ShiftRows(state);
-
-    // Using T-boxes + Ty(i) Tables (single step):
-    for (int j = 0; j < 4; ++j) {
-      uint8_t a = state[0][j], b = state[1][j],
-              c = state[2][j], d = state[3][j];
-
-      uint8_t a0 = Tyboxes[r][0][j][a][0], b0 = Tyboxes[r][0][j][b][1], c0 = Tyboxes[r][0][j][c][2], d0 = Tyboxes[r][0][j][d][3],
-              a1 = Tyboxes[r][1][j][a][0], b1 = Tyboxes[r][1][j][b][1], c1 = Tyboxes[r][1][j][c][2], d1 = Tyboxes[r][1][j][d][3],
-              a2 = Tyboxes[r][2][j][a][0], b2 = Tyboxes[r][2][j][b][1], c2 = Tyboxes[r][2][j][c][2], d2 = Tyboxes[r][2][j][d][3],
-              a3 = Tyboxes[r][3][j][a][0], b3 = Tyboxes[r][3][j][b][1], c3 = Tyboxes[r][3][j][c][2], d3 = Tyboxes[r][3][j][d][3];
-
-      state[0][j] = (Xor[Xor[a0 >> 4][b0 >> 4]][Xor[c0 >> 4][d0 >> 4]] << 4) | Xor[Xor[a0 & 0xf][b0 & 0xf]][Xor[c0 & 0xf][d0 & 0xf]];
-      state[1][j] = (Xor[Xor[a1 >> 4][b1 >> 4]][Xor[c1 >> 4][d1 >> 4]] << 4) | Xor[Xor[a1 & 0xf][b1 & 0xf]][Xor[c1 & 0xf][d1 & 0xf]];
-      state[2][j] = (Xor[Xor[a2 >> 4][b2 >> 4]][Xor[c2 >> 4][d2 >> 4]] << 4) | Xor[Xor[a2 & 0xf][b2 & 0xf]][Xor[c2 & 0xf][d2 & 0xf]];
-      state[3][j] = (Xor[Xor[a3 >> 4][b3 >> 4]][Xor[c3 >> 4][d3 >> 4]] << 4) | Xor[Xor[a3 & 0xf][b3 & 0xf]][Xor[c3 & 0xf][d3 & 0xf]];
-    }
-  }
-  ShiftRows(state);
-
-  // Using T-boxes:
-  for (int x = 0; x < 4; x++) {
-    for (int y = 0; y < 4; y++) {
-      state[x][y] = Tboxes10[x][y][state[x][y]];
-    }
-  }
-
-  // Copy the state to the output array.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      out[i*4 + j] = state[j][i];
-}
-
-void aes_table_decrypt(const uint8_t in[16],
-    uint8_t out[16],
-    const uint8_t InvTboxes[10][4][4][256],
-    const uint8_t InvTy[4][256][4],
-    const uint8_t Xor[16][16]) {
-  uint8_t state[4][4];
-
-  // Copy the input to the state.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      state[j][i] = in[i*4 + j];
-
-  // Using T-boxes:
-  for (int x = 0; x < 4; x++) {
-    for (int y = 0; y < 4; y++) {
-      state[x][y] = InvTboxes[9][x][y][state[x][y]];
-    }
-  }
-
-  InvShiftRows(state);
-  for (int r = 9; r > 0; r--) {
-    // Using InvTy(i) + T-boxes Tables (single step):
-    for (int j = 0; j < 4; ++j) {
-      uint8_t a = state[0][j], b = state[1][j],
-              c = state[2][j], d = state[3][j];
-
-      uint8_t a0 = InvTy[0][a][0], b0 = InvTy[0][b][1], c0 = InvTy[0][c][2], d0 = InvTy[0][d][3],
-              a1 = InvTy[1][a][0], b1 = InvTy[1][b][1], c1 = InvTy[1][c][2], d1 = InvTy[1][d][3],
-              a2 = InvTy[2][a][0], b2 = InvTy[2][b][1], c2 = InvTy[2][c][2], d2 = InvTy[2][d][3],
-              a3 = InvTy[3][a][0], b3 = InvTy[3][b][1], c3 = InvTy[3][c][2], d3 = InvTy[3][d][3];
-
-      uint8_t aa = (Xor[Xor[a0 >> 4][b0 >> 4]][Xor[c0 >> 4][d0 >> 4]] << 4) | Xor[Xor[a0 & 0xf][b0 & 0xf]][Xor[c0 & 0xf][d0 & 0xf]];
-      uint8_t bb = (Xor[Xor[a1 >> 4][b1 >> 4]][Xor[c1 >> 4][d1 >> 4]] << 4) | Xor[Xor[a1 & 0xf][b1 & 0xf]][Xor[c1 & 0xf][d1 & 0xf]];
-      uint8_t cc = (Xor[Xor[a2 >> 4][b2 >> 4]][Xor[c2 >> 4][d2 >> 4]] << 4) | Xor[Xor[a2 & 0xf][b2 & 0xf]][Xor[c2 & 0xf][d2 & 0xf]];
-      uint8_t dd = (Xor[Xor[a3 >> 4][b3 >> 4]][Xor[c3 >> 4][d3 >> 4]] << 4) | Xor[Xor[a3 & 0xf][b3 & 0xf]][Xor[c3 & 0xf][d3 & 0xf]];
-
-      state[0][j] = InvTboxes[r-1][0][j][aa];
-      state[1][j] = InvTboxes[r-1][1][j][bb];
-      state[2][j] = InvTboxes[r-1][2][j][cc];
-      state[3][j] = InvTboxes[r-1][3][j][dd];
-    }
-
-    InvShiftRows(state);
-  }
-
-  // Copy the state to the output array.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      out[i*4 + j] = state[j][i];
 }

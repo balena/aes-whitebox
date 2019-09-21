@@ -5,7 +5,8 @@
 #include <math.h>
 #include <string.h>
 
-#include "aes.h"
+#include "aes128.h"
+#include "aes128_oracle.h"
 
 au_main
 
@@ -25,27 +26,15 @@ au_main
   uint32_t roundKey[44];
   uint8_t output[16];
 
-  uint8_t Xor[16][16];
-
-  uint8_t Tyboxes[9][4][4][256][4];
-  uint8_t Tboxes10[4][4][256];
-
-  uint8_t InvTboxes[10][4][4][256];
-  uint8_t InvTy[4][256][4];
-
-  aes_key_expand(key, roundKey);
-  aes_encrypt(plain, output, roundKey);
+  aes128_expand_keys(key, roundKey);
+  aes128_encrypt(plain, output, roundKey);
   au_eq("Set 1, vector#  0/enc/ref", memcmp(output, cipher, sizeof(cipher)), 0);
-  aes_decrypt(cipher, output, roundKey);
+  aes128_decrypt(cipher, output, roundKey);
   au_eq("Set 1, vector#  0/dec/ref", memcmp(output, plain, sizeof(plain)), 0);
 
-  aes_gen_xor_tables(Xor);
-  aes_encrypt_gen_tables(Tyboxes, Tboxes10, roundKey);
-  aes_decrypt_gen_tables(InvTboxes, InvTy, roundKey);
-
-  aes_table_encrypt(plain, output, Tyboxes, Tboxes10, Xor);
+  aes128_oracle_encrypt(plain, output);
   au_eq("Set 1, vector#  0/enc/tab", memcmp(output, cipher, sizeof(cipher)), 0);
-  aes_table_decrypt(cipher, output, InvTboxes, InvTy, Xor);
+  aes128_oracle_decrypt(cipher, output);
   au_eq("Set 1, vector#  0/dec/tab", memcmp(output, plain, sizeof(plain)), 0);
 
 /*
