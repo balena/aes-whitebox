@@ -27,11 +27,11 @@ au_main
 
   uint8_t Xor[16][16];
 
-  uint8_t Tboxes[10][4][4][256];
-  uint32_t Ty[4][256][4];
+  uint8_t Tyboxes[9][4][4][256][4];
+  uint8_t Tboxes10[4][4][256];
 
   uint8_t InvTboxes[10][4][4][256];
-  uint32_t InvTy[4][256][4];
+  uint8_t InvTy[4][256][4];
 
   aes_key_expand(key, roundKey);
   aes_encrypt(plain, output, roundKey);
@@ -40,10 +40,10 @@ au_main
   au_eq("Set 1, vector#  0/dec/ref", memcmp(output, plain, sizeof(plain)), 0);
 
   aes_gen_xor_tables(Xor);
-  aes_encrypt_gen_tables(Tboxes, Ty, roundKey);
+  aes_encrypt_gen_tables(Tyboxes, Tboxes10, roundKey);
   aes_decrypt_gen_tables(InvTboxes, InvTy, roundKey);
 
-  aes_table_encrypt(plain, output, Tboxes, Ty, Xor);
+  aes_table_encrypt(plain, output, Tyboxes, Tboxes10, Xor);
   au_eq("Set 1, vector#  0/enc/tab", memcmp(output, cipher, sizeof(cipher)), 0);
   aes_table_decrypt(cipher, output, InvTboxes, InvTy, Xor);
   au_eq("Set 1, vector#  0/dec/tab", memcmp(output, plain, sizeof(plain)), 0);

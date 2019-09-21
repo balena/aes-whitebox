@@ -338,7 +338,7 @@ static void MixColumns(uint8_t state[4][4]) {
   }
 }
 
-static void CalculateTy(uint32_t Ty[4][256][4]) {
+static void CalculateTy(uint8_t Ty[4][256][4]) {
   for (int x = 0; x < 256; x++) {
     Ty[0][x][0] = gf_mul[x][0];
     Ty[0][x][1] = gf_mul[x][1];
@@ -362,6 +362,22 @@ static void CalculateTy(uint32_t Ty[4][256][4]) {
   }
 }
 
+static void CalculateTyBoxes(const uint8_t Tboxes[10][4][4][256],
+    const uint8_t Ty[4][256][4], uint8_t Tyboxes[9][4][4][256][4],
+    uint8_t Tboxes10[4][4][256]) {
+  for (int r = 0; r < 9; ++r)
+    for (int i = 0; i < 4; ++i)
+      for (int j = 0; j < 4; ++j)
+        for (int x = 0; x < 256; x++)
+          for (int k = 0; k < 4; k++)
+            Tyboxes[r][i][j][x][k] = Ty[i][Tboxes[r][k][j][x]][k];
+
+  for (int i = 0; i < 4; i++)
+    for (int j = 0; j < 4; j++)
+      for (int x = 0; x < 256; x++)
+        Tboxes10[i][j][x] = Tboxes[9][i][j][x];
+}
+
 static void InvMixColumns(uint8_t state[4][4]) {
   // Columns 1 to 4
   for (int i = 0; i < 4; i++) {
@@ -375,7 +391,7 @@ static void InvMixColumns(uint8_t state[4][4]) {
   }
 }
 
-static void CalculateInvTy(uint32_t InvTy[4][256][4]) {
+static void CalculateInvTy(uint8_t InvTy[4][256][4]) {
   for (int x = 0; x < 256; x++) {
     InvTy[0][x][0] = gf_mul[x][5];
     InvTy[0][x][1] = gf_mul[x][3];
@@ -503,22 +519,25 @@ void aes_gen_xor_tables(uint8_t Xor[16][16]) {
       Xor[i][j] = i ^ j;
 }
 
-void aes_encrypt_gen_tables(uint8_t Tboxes[10][4][4][256],
-    uint32_t Ty[4][256][4], const uint32_t roundKey[44]) {
+void aes_encrypt_gen_tables(uint8_t Tyboxes[9][4][4][256][4],
+    uint8_t Tboxes10[4][4][256], const uint32_t roundKey[44]) {
+  uint8_t Tboxes[10][4][4][256];
+  uint8_t Ty[4][256][4];
   CalculateTboxes(roundKey, Tboxes);
   CalculateTy(Ty);
+  CalculateTyBoxes(Tboxes, Ty, Tyboxes, Tboxes10);
 }
 
 void aes_decrypt_gen_tables(uint8_t InvTboxes[10][4][4][256],
-    uint32_t InvTy[4][256][4], const uint32_t roundKey[44]) {
+    uint8_t InvTy[4][256][4], const uint32_t roundKey[44]) {
   CalculateInvTboxes(roundKey, InvTboxes);
   CalculateInvTy(InvTy);
 }
 
 void aes_table_protect(uint8_t Tboxes[10][4][4][256],
-    uint32_t Ty[4][256][4],
+    uint8_t Ty[4][256][4],
     uint8_t InvTboxes[10][4][4][256],
-    uint32_t InvTy[4][256][4]) {
+    uint8_t InvTy[4][256][4]) {
   uint8_t random_vector[4*4*256];
   randombytes_buf(random_vector, sizeof(random_vector));
   // TODO
@@ -526,8 +545,8 @@ void aes_table_protect(uint8_t Tboxes[10][4][4][256],
 
 void aes_table_encrypt(const uint8_t in[16],
     uint8_t out[16],
-    const uint8_t Tboxes[10][4][4][256],
-    const uint32_t Ty[4][256][4],
+    uint8_t Tyboxes[9][4][4][256][4],
+    uint8_t Tboxes10[4][4][256],
     const uint8_t Xor[16][16]) {
   uint8_t state[4][4];
 
@@ -545,20 +564,10 @@ void aes_table_encrypt(const uint8_t in[16],
       uint8_t a = state[0][j], b = state[1][j],
               c = state[2][j], d = state[3][j];
 
-      uint8_t a0, a1, a2, a3,
-              b0, b1, b2, b3,
-              c0, c1, c2, c3,
-              d0, d1, d2, d3;
-
-      a = Tboxes[r][0][j][a];
-      b = Tboxes[r][1][j][b];
-      c = Tboxes[r][2][j][c];
-      d = Tboxes[r][3][j][d];
-
-      a0 = Ty[0][a][0]; b0 = Ty[0][b][1]; c0 = Ty[0][c][2]; d0 = Ty[0][d][3];
-      a1 = Ty[1][a][0]; b1 = Ty[1][b][1]; c1 = Ty[1][c][2]; d1 = Ty[1][d][3];
-      a2 = Ty[2][a][0]; b2 = Ty[2][b][1]; c2 = Ty[2][c][2]; d2 = Ty[2][d][3];
-      a3 = Ty[3][a][0]; b3 = Ty[3][b][1]; c3 = Ty[3][c][2]; d3 = Ty[3][d][3];
+      uint8_t a0 = Tyboxes[r][0][j][a][0], b0 = Tyboxes[r][0][j][b][1], c0 = Tyboxes[r][0][j][c][2], d0 = Tyboxes[r][0][j][d][3],
+              a1 = Tyboxes[r][1][j][a][0], b1 = Tyboxes[r][1][j][b][1], c1 = Tyboxes[r][1][j][c][2], d1 = Tyboxes[r][1][j][d][3],
+              a2 = Tyboxes[r][2][j][a][0], b2 = Tyboxes[r][2][j][b][1], c2 = Tyboxes[r][2][j][c][2], d2 = Tyboxes[r][2][j][d][3],
+              a3 = Tyboxes[r][3][j][a][0], b3 = Tyboxes[r][3][j][b][1], c3 = Tyboxes[r][3][j][c][2], d3 = Tyboxes[r][3][j][d][3];
 
       state[0][j] = (Xor[Xor[a0 >> 4][b0 >> 4]][Xor[c0 >> 4][d0 >> 4]] << 4) | Xor[Xor[a0 & 0xf][b0 & 0xf]][Xor[c0 & 0xf][d0 & 0xf]];
       state[1][j] = (Xor[Xor[a1 >> 4][b1 >> 4]][Xor[c1 >> 4][d1 >> 4]] << 4) | Xor[Xor[a1 & 0xf][b1 & 0xf]][Xor[c1 & 0xf][d1 & 0xf]];
@@ -571,7 +580,7 @@ void aes_table_encrypt(const uint8_t in[16],
   // Using T-boxes:
   for (int x = 0; x < 4; x++) {
     for (int y = 0; y < 4; y++) {
-      state[x][y] = Tboxes[9][x][y][state[x][y]];
+      state[x][y] = Tboxes10[x][y][state[x][y]];
     }
   }
 
@@ -584,7 +593,7 @@ void aes_table_encrypt(const uint8_t in[16],
 void aes_table_decrypt(const uint8_t in[16],
     uint8_t out[16],
     const uint8_t InvTboxes[10][4][4][256],
-    const uint32_t InvTy[4][256][4],
+    const uint8_t InvTy[4][256][4],
     const uint8_t Xor[16][16]) {
   uint8_t state[4][4];
 
@@ -607,15 +616,10 @@ void aes_table_decrypt(const uint8_t in[16],
       uint8_t a = state[0][j], b = state[1][j],
               c = state[2][j], d = state[3][j];
 
-      uint8_t a0, a1, a2, a3,
-              b0, b1, b2, b3,
-              c0, c1, c2, c3,
-              d0, d1, d2, d3;
-
-      a0 = InvTy[0][a][0]; b0 = InvTy[0][b][1]; c0 = InvTy[0][c][2]; d0 = InvTy[0][d][3];
-      a1 = InvTy[1][a][0]; b1 = InvTy[1][b][1]; c1 = InvTy[1][c][2]; d1 = InvTy[1][d][3];
-      a2 = InvTy[2][a][0]; b2 = InvTy[2][b][1]; c2 = InvTy[2][c][2]; d2 = InvTy[2][d][3];
-      a3 = InvTy[3][a][0]; b3 = InvTy[3][b][1]; c3 = InvTy[3][c][2]; d3 = InvTy[3][d][3];
+      uint8_t a0 = InvTy[0][a][0], b0 = InvTy[0][b][1], c0 = InvTy[0][c][2], d0 = InvTy[0][d][3],
+              a1 = InvTy[1][a][0], b1 = InvTy[1][b][1], c1 = InvTy[1][c][2], d1 = InvTy[1][d][3],
+              a2 = InvTy[2][a][0], b2 = InvTy[2][b][1], c2 = InvTy[2][c][2], d2 = InvTy[2][d][3],
+              a3 = InvTy[3][a][0], b3 = InvTy[3][b][1], c3 = InvTy[3][c][2], d3 = InvTy[3][d][3];
 
       uint8_t aa = (Xor[Xor[a0 >> 4][b0 >> 4]][Xor[c0 >> 4][d0 >> 4]] << 4) | Xor[Xor[a0 & 0xf][b0 & 0xf]][Xor[c0 & 0xf][d0 & 0xf]];
       uint8_t bb = (Xor[Xor[a1 >> 4][b1 >> 4]][Xor[c1 >> 4][d1 >> 4]] << 4) | Xor[Xor[a1 & 0xf][b1 & 0xf]][Xor[c1 & 0xf][d1 & 0xf]];
