@@ -238,6 +238,32 @@ static void ShiftRows(uint8_t state[4][4]) {
       state[3][1] = t;
 }
 
+static void ShiftRowsR(uint8_t state[4][4]) {
+  uint8_t t;
+
+  // Shift left by 1
+  t = state[0][1];
+      state[0][1] = state[1][1];
+      state[1][1] = state[2][1];
+      state[2][1] = state[3][1];
+      state[3][1] = t;
+
+  // Shift left by 2
+  t = state[0][2];
+      state[0][2] = state[2][2];
+      state[2][2] = t;
+  t = state[1][2];
+      state[1][2] = state[3][2];
+      state[3][2] = t;
+
+  // Shift left by 3
+  t = state[0][3];
+      state[0][3] = state[3][3];
+      state[3][3] = state[2][3];
+      state[2][3] = state[1][3];
+      state[1][3] = t;
+}
+
 // All rows are shifted cylindrically to the right.
 static void InvShiftRows(uint8_t state[4][4]) {
   int t;
@@ -263,6 +289,32 @@ static void InvShiftRows(uint8_t state[4][4]) {
       state[3][0] = state[3][1];
       state[3][1] = state[3][2];
       state[3][2] = t;
+}
+
+static void InvShiftRowsR(uint8_t state[4][4]) {
+  int t;
+
+  // Shift right by 1
+  t = state[3][1];
+      state[3][1] = state[2][1];
+      state[2][1] = state[1][1];
+      state[1][1] = state[0][1];
+      state[0][1] = t;
+
+  // Shift right by 2
+  t = state[3][2];
+      state[3][2] = state[1][2];
+      state[1][2] = t;
+  t = state[2][2];
+      state[2][2] = state[0][2];
+      state[0][2] = t;
+
+  // Shift right by 3
+  t = state[3][3];
+      state[3][3] = state[0][3];
+      state[0][3] = state[1][3];
+      state[1][3] = state[2][3];
+      state[2][3] = t;
 }
 
 // Performs the MixColums step. The state is multiplied by itself using matrix
