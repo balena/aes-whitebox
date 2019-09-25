@@ -104,8 +104,8 @@ static void Generate32x32MixingBijections(NTL::mat_GF2 MB[9][4]) {
 // and the SubBytes functions.
 static void CalculateTboxes(const uint32_t roundKey[44],
     uint8_t Tboxes[10][4][4][256]) {
-  for (int x = 0; x < 256; x++) {
-    for (int r = 0; r < 10; r++) {
+  for (int r = 0; r < 10; r++) {
+    for (int x = 0; x < 256; x++) {
       uint8_t state[4][4] = {
         { (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x },
         { (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x },
@@ -212,60 +212,132 @@ static void print_state(uint8_t state[4][4]) {
   printf("]\n");
 }
 
+static const uint8_t preshift[4][4] = {
+  {  0, 13, 10,  7, },
+  {  4,  1, 14, 11, },
+  {  8,  5,  2, 15, },
+  { 12,  9,  6,  3, },
+};
+
+static const uint8_t shifted[4][4] = {
+  { 0,  5, 10, 15, },
+  { 4,  9, 14,  3, },
+  { 8, 13,  2,  7, },
+  { 12, 1,  6, 11, },
+};
+
 static void CalculateTyBoxes(const uint8_t Tboxes[10][4][4][256],
     const uint8_t Ty[4][256][4], const NTL::mat_GF2 L[9][4][4],
     const NTL::mat_GF2 MB[9][4], uint32_t Tyboxes[9][4][4][256],
     uint8_t Tboxes10[4][4][256], uint32_t MBL[9][4][4][256]) {
-  static const uint8_t shifted[4][4] = {
-    { 0,  5, 10, 15, },
-    { 4,  9, 14,  3, },
-    { 8, 13,  2,  7, },
-    { 12, 1,  6, 11, },
-  };
-
 #if 0
-  printf("-- Round %d:\n", 0);
-  print_state(temp_state);
+  {
+    uint8_t state[4][4] = {
+      {  0,  1,  2,  3, },
+      {  4,  5,  6,  7, },
+      {  8,  9, 10, 11, },
+      { 12, 13, 14, 15, },
+    };
 
-  for (int i = 0; i < 4; i++) {
-    for (int j = 0; j < 4; j++) {
-      uint8_t in = temp_state[i][j];
-      temp_state[i][j] = mul<uint8_t>(L[0][i][j], in);
-      printf(">> L[%d][%d][%d] * %d = %d\n", 0, i, j, in, temp_state[i][j]);
+    for (int r = 0; r < 9; r++) {
+      printf("-- Round %d:\n", r);
+      print_state(state);
+
+      ShiftRowsR(state);
+
+      if (r > 0) {
+        for (int i = 0; i < 4; i++)
+          for (int j = 0; j < 4; j++)
+            state[i][j] = mul<uint8_t>(NTL::inv(L[r-1][shifted[i][j] >> 2][shifted[i][j] & 0x3]), state[i][j]);
+
+        printf(">> After decoding with inv(L[%d][i][j]):\n", r);
+        print_state(state);
+      }
+
+      for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++)
+          state[i][j] = mul<uint8_t>(L[r][i][j], state[i][j]);
+
+      printf(">> After encoding with L[%d][i][j]:\n", r);
+      print_state(state);
     }
+
+    printf("-- Round %d:\n", 9);
+    print_state(state);
+
+    ShiftRowsR(state);
+
+    for (int i = 0; i < 4; i++)
+      for (int j = 0; j < 4; j++)
+        state[i][j] = mul<uint8_t>(NTL::inv(L[8][shifted[i][j] >> 2][shifted[i][j] & 0x3]), state[i][j]);
+
+    printf(">> After decoding with inv(L[%d][i][j]):\n", 0);
+    print_state(state);
   }
-  printf(">> After L[%d][i][j]:\n", 0);
 
-  print_state(temp_state);
-  printf("-- Round %d:\n", 1);
-  ShiftRowsR(temp_state);
-  printf(">> After ShiftRows\n");
-  print_state(temp_state);
+  {
+    uint8_t state[4][4] = {
+      {  0,  1,  2,  3, },
+      {  4,  5,  6,  7, },
+      {  8,  9, 10, 11, },
+      { 12, 13, 14, 15, },
+    };
 
-  for (int i = 0; i < 4; i++) {
-    for (int j = 0; j < 4; j++) {
-      uint8_t ii = shifted[i][j] >> 2, jj = shifted[i][j] & 0x3;
-      uint8_t in = temp_state[i][j];
-      temp_state[i][j] = mul<uint8_t>(NTL::inv(L[0][ii][jj]), in);
-      printf(">> inv(L[%d][%d][%d]) * %d = %d\n", 0, ii, jj, in, temp_state[i][j]);
+    for (int r = 0; r < 9; r++) {
+      printf("-- Round %d:\n", r);
+      print_state(state);
+
+      ShiftRowsR(state);
+
+      if (r > 0) {
+        for (int i = 0; i < 4; i++)
+          for (int j = 0; j < 4; j++)
+            state[i][j] = mul<uint8_t>(NTL::inv(L[r-1][i][j]), state[i][j]);
+
+        printf(">> After decoding with inv(L[%d][i][j]):\n", r);
+        print_state(state);
+      }
+
+      for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 4; j++) {
+          state[i][j] =
+            mul<uint8_t>(L[r][preshift[i][j] >> 2][preshift[i][j] & 0x3], state[i][j]);
+        }
+      }
+
+      printf(">> After encoding with L[%d][i][j]:\n", r);
+      print_state(state);
     }
+
+    printf("-- Round %d:\n", 9);
+    print_state(state);
+
+    ShiftRowsR(state);
+
+    for (int i = 0; i < 4; i++)
+      for (int j = 0; j < 4; j++)
+        state[i][j] = mul<uint8_t>(NTL::inv(L[8][i][j]), state[i][j]);
+
+    printf(">> After decoding with inv(L[%d][i][j]):\n", 0);
+    print_state(state);
   }
-  printf(">> After inv(L[%d][i][j]):\n", 0);
-  print_state(temp_state);
 #endif
 
+#define ENABLE_L 0
+#define ENABLE_MB 1
+
   for (int r = 0; r < 9; r++) {
-    for (int j = 0; j < 4; j++) {
-      for (int x = 0; x < 256; x++) {
-        uint8_t in0, in1, in2, in3;
-        //if (r < 1) {
-          in0 = in1 = in2 = in3 = x;
-        //} else {
-        //  in0 = mul<uint8_t>(NTL::inv(L[r-1][shifted[j][0] >> 2][shifted[j][0] & 0x3]), x);
-        //  in1 = mul<uint8_t>(NTL::inv(L[r-1][shifted[j][1] >> 2][shifted[j][1] & 0x3]), x);
-        //  in2 = mul<uint8_t>(NTL::inv(L[r-1][shifted[j][2] >> 2][shifted[j][2] & 0x3]), x);
-        //  in3 = mul<uint8_t>(NTL::inv(L[r-1][shifted[j][3] >> 2][shifted[j][3] & 0x3]), x);
-        //}
+    for (int x = 0; x < 256; x++) {
+      for (int j = 0; j < 4; j++) {
+#if !ENABLE_L
+        uint8_t in0 = x, in1 = x, in2 = x, in3 = x;
+#else
+        // -- Precompute MB × Ty × Tbox × inv(L), except for first round
+        uint8_t in0 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][0]), x);
+        uint8_t in1 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][1]), x);
+        uint8_t in2 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][2]), x);
+        uint8_t in3 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][3]), x);
+#endif
 
         uint8_t a0 = Ty[0][Tboxes[r][0][j][in0]][0],
                 b0 = Ty[0][Tboxes[r][1][j][in0]][1],
@@ -287,66 +359,77 @@ static void CalculateTyBoxes(const uint8_t Tboxes[10][4][4][256],
                 c3 = Ty[3][Tboxes[r][2][j][in3]][2],
                 d3 = Ty[3][Tboxes[r][3][j][in3]][3];
 
+#if !ENABLE_MB
+        uint32_t out0 = (a0 << 24) | (a1 << 16) | (a2 << 8) | a3;
+        uint32_t out1 = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+        uint32_t out2 = (c0 << 24) | (c1 << 16) | (c2 << 8) | c3;
+        uint32_t out3 = (d0 << 24) | (d1 << 16) | (d2 << 8) | d3;
+#else
         uint32_t out0 = mul<uint32_t>(MB[r][j], (a0 << 24) | (a1 << 16) | (a2 << 8) | a3);
         uint32_t out1 = mul<uint32_t>(MB[r][j], (b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
         uint32_t out2 = mul<uint32_t>(MB[r][j], (c0 << 24) | (c1 << 16) | (c2 << 8) | c3);
         uint32_t out3 = mul<uint32_t>(MB[r][j], (d0 << 24) | (d1 << 16) | (d2 << 8) | d3);
+#endif
 
         Tyboxes[r][j][0][x] = out0;
         Tyboxes[r][j][1][x] = out1;
         Tyboxes[r][j][2][x] = out2;
         Tyboxes[r][j][3][x] = out3;
 
+#if !ENABLE_MB
+        uint32_t lmb0 = x << 24;
+        uint32_t lmb1 = x << 16;
+        uint32_t lmb2 = x <<  8;
+        uint32_t lmb3 = x <<  0;
+#else
         uint32_t lmb0 = mul<uint32_t>(NTL::inv(MB[r][j]), x << 24);
         uint32_t lmb1 = mul<uint32_t>(NTL::inv(MB[r][j]), x << 16);
         uint32_t lmb2 = mul<uint32_t>(NTL::inv(MB[r][j]), x <<  8);
         uint32_t lmb3 = mul<uint32_t>(NTL::inv(MB[r][j]), x <<  0);
+#endif
 
+#if !ENABLE_L
         MBL[r][j][0][x] = lmb0;
         MBL[r][j][1][x] = lmb1;
         MBL[r][j][2][x] = lmb2;
         MBL[r][j][3][x] = lmb3;
-
-#if 0
-        MBL[r][j][0][x] = (mul<uint8_t>(L[r][j][0], lmb0 >> 24) << 24)
-                        | (mul<uint8_t>(L[r][j][1], lmb0 >> 16) << 16)
-                        | (mul<uint8_t>(L[r][j][2], lmb0 >>  8) <<  8)
-                        | (mul<uint8_t>(L[r][j][3], lmb0 >>  0) <<  0);
-
-        MBL[r][j][1][x] = (mul<uint8_t>(L[r][j][0], lmb1 >> 24) << 24)
-                        | (mul<uint8_t>(L[r][j][1], lmb1 >> 16) << 16)
-                        | (mul<uint8_t>(L[r][j][2], lmb1 >>  8) <<  8)
-                        | (mul<uint8_t>(L[r][j][3], lmb1 >>  0) <<  0);
-
-        MBL[r][j][2][x] = (mul<uint8_t>(L[r][j][0], lmb2 >> 24) << 24)
-                        | (mul<uint8_t>(L[r][j][1], lmb2 >> 16) << 16)
-                        | (mul<uint8_t>(L[r][j][2], lmb2 >>  8) <<  8)
-                        | (mul<uint8_t>(L[r][j][3], lmb2 >>  0) <<  0);
-
-        MBL[r][j][3][x] = (mul<uint8_t>(L[r][j][0], lmb3 >> 24) << 24)
-                        | (mul<uint8_t>(L[r][j][1], lmb3 >> 16) << 16)
-                        | (mul<uint8_t>(L[r][j][2], lmb3 >>  8) <<  8)
-                        | (mul<uint8_t>(L[r][j][3], lmb3 >>  0) <<  0);
+#else
+        // -- Precompute L × inv(MB) [ z1, z2, z3, z4 ], considering the input of the next round
+        MBL[r][j][0][x] = (mul<uint8_t>(L[r][preshift[j][0] >> 2][preshift[j][0] & 0x3], lmb0 >> 24) << 24)
+                        | (mul<uint8_t>(L[r][preshift[j][1] >> 2][preshift[j][1] & 0x3], lmb0 >> 16) << 16)
+                        | (mul<uint8_t>(L[r][preshift[j][2] >> 2][preshift[j][2] & 0x3], lmb0 >>  8) <<  8)
+                        | (mul<uint8_t>(L[r][preshift[j][3] >> 2][preshift[j][3] & 0x3], lmb0 >>  0) <<  0);
+       
+        MBL[r][j][1][x] = (mul<uint8_t>(L[r][preshift[j][0] >> 2][preshift[j][0] & 0x3], lmb1 >> 24) << 24)
+                        | (mul<uint8_t>(L[r][preshift[j][1] >> 2][preshift[j][1] & 0x3], lmb1 >> 16) << 16)
+                        | (mul<uint8_t>(L[r][preshift[j][2] >> 2][preshift[j][2] & 0x3], lmb1 >>  8) <<  8)
+                        | (mul<uint8_t>(L[r][preshift[j][3] >> 2][preshift[j][3] & 0x3], lmb1 >>  0) <<  0);
+       
+        MBL[r][j][2][x] = (mul<uint8_t>(L[r][preshift[j][0] >> 2][preshift[j][0] & 0x3], lmb2 >> 24) << 24)
+                        | (mul<uint8_t>(L[r][preshift[j][1] >> 2][preshift[j][1] & 0x3], lmb2 >> 16) << 16)
+                        | (mul<uint8_t>(L[r][preshift[j][2] >> 2][preshift[j][2] & 0x3], lmb2 >>  8) <<  8)
+                        | (mul<uint8_t>(L[r][preshift[j][3] >> 2][preshift[j][3] & 0x3], lmb2 >>  0) <<  0);
+       
+        MBL[r][j][3][x] = (mul<uint8_t>(L[r][preshift[j][0] >> 2][preshift[j][0] & 0x3], lmb3 >> 24) << 24)
+                        | (mul<uint8_t>(L[r][preshift[j][1] >> 2][preshift[j][1] & 0x3], lmb3 >> 16) << 16)
+                        | (mul<uint8_t>(L[r][preshift[j][2] >> 2][preshift[j][2] & 0x3], lmb3 >>  8) <<  8)
+                        | (mul<uint8_t>(L[r][preshift[j][3] >> 2][preshift[j][3] & 0x3], lmb3 >>  0) <<  0);
 #endif
       }
     }
   }
 
-  for (int j = 0; j < 4; j++) {
-    for (int x = 0; x < 256; x++) {
-      uint8_t in0 = x, in1 = x, in2 = x, in3 = x;
-
-#if 0
-      uint8_t in0 = mul<uint8_t>(NTL::inv(L[8][shifted[j][0] >> 2][shifted[j][0] & 0x3]), x),
-              in1 = mul<uint8_t>(NTL::inv(L[8][shifted[j][1] >> 2][shifted[j][1] & 0x3]), x),
-              in2 = mul<uint8_t>(NTL::inv(L[8][shifted[j][2] >> 2][shifted[j][2] & 0x3]), x),
-              in3 = mul<uint8_t>(NTL::inv(L[8][shifted[j][3] >> 2][shifted[j][3] & 0x3]), x);
+  for (int x = 0; x < 256; x++) {
+    for (int j = 0; j < 4; j++) {
+      for (int i = 0; i < 4; i++) {
+#if !ENABLE_L
+        uint8_t in = x;
+#else
+        // -- Precompute Tbox × inv(L)
+        uint8_t in = mul<uint8_t>(NTL::inv(L[8][j][i]), x);
 #endif
-
-      Tboxes10[j][0][x] = Tboxes[9][0][j][in0];
-      Tboxes10[j][1][x] = Tboxes[9][1][j][in1];
-      Tboxes10[j][2][x] = Tboxes[9][2][j][in2];
-      Tboxes10[j][3][x] = Tboxes[9][3][j][in3];
+        Tboxes10[j][i][x] = Tboxes[9][i][j][in];
+      }
     }
   }
 }
