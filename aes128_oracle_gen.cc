@@ -216,102 +216,56 @@ static void CalculateTyBoxes(const uint8_t Tboxes[10][4][4][256],
     const uint8_t Ty[4][256][4], const NTL::mat_GF2 L[9][4][4],
     const NTL::mat_GF2 MB[9][4], uint32_t Tyboxes[9][4][4][256],
     uint8_t Tboxes10[4][4][256], uint32_t MBL[9][4][4][256]) {
-/*
-  uint8_t temp_state[4][4] = {
-    { 11, 12, 13, 14, },
-    { 21, 22, 23, 24, },
-    { 31, 32, 33, 34, },
-    { 41, 42, 43, 44, },
+  static const uint8_t shifted[4][4] = {
+    { 0,  5, 10, 15, },
+    { 4,  9, 14,  3, },
+    { 8, 13,  2,  7, },
+    { 12, 1,  6, 11, },
   };
 
-  static uint8_t shifts[4][4] = {
-    { 0, 13, 10,  7, },
-    { 4,  1, 14, 11, },
-    { 8,  5,  2, 15, },
-    { 12, 9,  6,  3, },
-  };
-
-  static uint8_t invShifts[4][4] = {
-		{  0,  5, 10, 15, },
-		{  4,  9, 14,  3, },
-		{  8, 13,  2,  7, },
-		{ 12,  1,  6, 11, },
-  };
-
-  int max = 2;
-  for (int r = 0; r < max; r++) {
-    printf("-- Round %d:\n", r);
-    print_state(temp_state);
-
-    ShiftRowsR(temp_state);
-    printf(">> After ShiftRows\n");
-    print_state(temp_state);
-
-    if (r > 0) {
-      for (int i = 0; i < 4; i++)
-        for (int j = 0; j < 4; j++) {
-          uint8_t in = temp_state[i][j];
-          temp_state[i][j] = mul<uint8_t>(NTL::inv(L[r-1][i][j]), in);
-          printf(">> inv(L[%d][%d][%d]) * %d = %d\n", r-1, i, j, in, temp_state[i][j]);
-        }
-      printf(">> After inv(L[%d][i][j]):\n", r-1);
-      print_state(temp_state);
-    }
-
-    if (r < max - 1) {
-      for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-          int ii = invShifts[i][j] >> 2, jj = invShifts[i][j] & 0x3;
-          uint8_t in = temp_state[ii][jj];
-          temp_state[ii][jj] = mul<uint8_t>(L[r][ii][jj], in);
-          printf(">> L[%d][%d][%d] * %d = %d\n", r, i, j, in, temp_state[i][j]);
-        }
-      }
-
-      printf(">> After L[%d][i][j]:\n", r);
-      print_state(temp_state);
-    }
-  }
-
-  printf("-- Final:\n");
+#if 0
+  printf("-- Round %d:\n", 0);
   print_state(temp_state);
 
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      uint8_t in = temp_state[i][j];
+      temp_state[i][j] = mul<uint8_t>(L[0][i][j], in);
+      printf(">> L[%d][%d][%d] * %d = %d\n", 0, i, j, in, temp_state[i][j]);
+    }
+  }
+  printf(">> After L[%d][i][j]:\n", 0);
+
+  print_state(temp_state);
+  printf("-- Round %d:\n", 1);
   ShiftRowsR(temp_state);
-
-  for (int j = 0; j < 4; j++) {
-    uint8_t a = temp_state[j][0],
-            b = temp_state[j][1],
-            c = temp_state[j][2],
-            d = temp_state[j][3];
-
-    uint8_t in0 = mul<uint8_t>(L[max-1][], a);
-    uint8_t in1 = mul<uint8_t>(L[max-1][], b);
-    uint8_t in2 = mul<uint8_t>(L[max-1][], c);
-    uint8_t in3 = mul<uint8_t>(L[max-1][], d);
-
-    temp_state[invShifts[j][0] >> 2][invShifts[j][0] & 0x3] = in0;
-    temp_state[invShifts[j][1] >> 2][invShifts[j][1] & 0x3] = in1;
-    temp_state[invShifts[j][2] >> 2][invShifts[j][2] & 0x3] = in2;
-    temp_state[invShifts[j][3] >> 2][invShifts[j][3] & 0x3] = in3;
-  }
-
+  printf(">> After ShiftRows\n");
   print_state(temp_state);
-*/
+
+  for (int i = 0; i < 4; i++) {
+    for (int j = 0; j < 4; j++) {
+      uint8_t ii = shifted[i][j] >> 2, jj = shifted[i][j] & 0x3;
+      uint8_t in = temp_state[i][j];
+      temp_state[i][j] = mul<uint8_t>(NTL::inv(L[0][ii][jj]), in);
+      printf(">> inv(L[%d][%d][%d]) * %d = %d\n", 0, ii, jj, in, temp_state[i][j]);
+    }
+  }
+  printf(">> After inv(L[%d][i][j]):\n", 0);
+  print_state(temp_state);
+#endif
 
   for (int r = 0; r < 9; r++) {
     for (int j = 0; j < 4; j++) {
       for (int x = 0; x < 256; x++) {
-#if 0
-        uint8_t in0 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][0]), x);
-        uint8_t in1 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][1]), x);
-        uint8_t in2 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][2]), x);
-        uint8_t in3 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][3]), x);
-#endif
-
-        uint8_t in0 = x;
-        uint8_t in1 = x;
-        uint8_t in2 = x;
-        uint8_t in3 = x;
+        uint8_t in0, in1, in2, in3;
+        //if (r < 1) {
+          in0 = in1 = in2 = in3 = x;
+        //} else {
+        //  in0 = mul<uint8_t>(NTL::inv(L[r-1][shifted[j][0] >> 2][shifted[j][0] & 0x3]), x);
+        //  in1 = mul<uint8_t>(NTL::inv(L[r-1][shifted[j][1] >> 2][shifted[j][1] & 0x3]), x);
+        //  in2 = mul<uint8_t>(NTL::inv(L[r-1][shifted[j][2] >> 2][shifted[j][2] & 0x3]), x);
+        //  in3 = mul<uint8_t>(NTL::inv(L[r-1][shifted[j][3] >> 2][shifted[j][3] & 0x3]), x);
+        //}
 
         uint8_t a0 = Ty[0][Tboxes[r][0][j][in0]][0],
                 b0 = Ty[0][Tboxes[r][1][j][in0]][1],
@@ -354,36 +308,47 @@ static void CalculateTyBoxes(const uint8_t Tboxes[10][4][4][256],
         MBL[r][j][3][x] = lmb3;
 
 #if 0
-        MBL[r][j][0][x] = (mul<uint8_t>(L[r][j][0], temp_state[0][0]) << 24)
-                        | (mul<uint8_t>(L[r][j][0], temp_state[0][1]) << 16)
-                        | (mul<uint8_t>(L[r][j][0], temp_state[0][2]) <<  8)
-                        | (mul<uint8_t>(L[r][j][0], temp_state[0][3]) <<  0);
+        MBL[r][j][0][x] = (mul<uint8_t>(L[r][j][0], lmb0 >> 24) << 24)
+                        | (mul<uint8_t>(L[r][j][1], lmb0 >> 16) << 16)
+                        | (mul<uint8_t>(L[r][j][2], lmb0 >>  8) <<  8)
+                        | (mul<uint8_t>(L[r][j][3], lmb0 >>  0) <<  0);
 
-        MBL[r][j][1][x] = (mul<uint8_t>(L[r][j][1], temp_state[1][0]) << 24)
-                        | (mul<uint8_t>(L[r][j][1], temp_state[1][1]) << 16)
-                        | (mul<uint8_t>(L[r][j][1], temp_state[1][2]) <<  8)
-                        | (mul<uint8_t>(L[r][j][1], temp_state[1][3]) <<  0);
+        MBL[r][j][1][x] = (mul<uint8_t>(L[r][j][0], lmb1 >> 24) << 24)
+                        | (mul<uint8_t>(L[r][j][1], lmb1 >> 16) << 16)
+                        | (mul<uint8_t>(L[r][j][2], lmb1 >>  8) <<  8)
+                        | (mul<uint8_t>(L[r][j][3], lmb1 >>  0) <<  0);
 
-        MBL[r][j][2][x] = (mul<uint8_t>(L[r][j][2], temp_state[2][0]) << 24)
-                        | (mul<uint8_t>(L[r][j][2], temp_state[2][1]) << 16)
-                        | (mul<uint8_t>(L[r][j][2], temp_state[2][2]) <<  8)
-                        | (mul<uint8_t>(L[r][j][2], temp_state[2][3]) <<  0);
+        MBL[r][j][2][x] = (mul<uint8_t>(L[r][j][0], lmb2 >> 24) << 24)
+                        | (mul<uint8_t>(L[r][j][1], lmb2 >> 16) << 16)
+                        | (mul<uint8_t>(L[r][j][2], lmb2 >>  8) <<  8)
+                        | (mul<uint8_t>(L[r][j][3], lmb2 >>  0) <<  0);
 
-        MBL[r][j][3][x] = (mul<uint8_t>(L[r][j][3], temp_state[3][0]) << 24)
-                        | (mul<uint8_t>(L[r][j][3], temp_state[3][1]) << 16)
-                        | (mul<uint8_t>(L[r][j][3], temp_state[3][2]) <<  8)
-                        | (mul<uint8_t>(L[r][j][3], temp_state[3][3]) <<  0);
+        MBL[r][j][3][x] = (mul<uint8_t>(L[r][j][0], lmb3 >> 24) << 24)
+                        | (mul<uint8_t>(L[r][j][1], lmb3 >> 16) << 16)
+                        | (mul<uint8_t>(L[r][j][2], lmb3 >>  8) <<  8)
+                        | (mul<uint8_t>(L[r][j][3], lmb3 >>  0) <<  0);
 #endif
       }
     }
   }
 
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      for (int x = 0; x < 256; x++) {
-        Tboxes10[j][i][x] = Tboxes[9][i][j][x];
-        //Tboxes10[j][i][x] = Tboxes[9][i][j][mul<uint8_t>(NTL::inv(L[8][i][j]), x)];
-      }
+  for (int j = 0; j < 4; j++) {
+    for (int x = 0; x < 256; x++) {
+      uint8_t in0 = x, in1 = x, in2 = x, in3 = x;
+
+#if 0
+      uint8_t in0 = mul<uint8_t>(NTL::inv(L[8][shifted[j][0] >> 2][shifted[j][0] & 0x3]), x),
+              in1 = mul<uint8_t>(NTL::inv(L[8][shifted[j][1] >> 2][shifted[j][1] & 0x3]), x),
+              in2 = mul<uint8_t>(NTL::inv(L[8][shifted[j][2] >> 2][shifted[j][2] & 0x3]), x),
+              in3 = mul<uint8_t>(NTL::inv(L[8][shifted[j][3] >> 2][shifted[j][3] & 0x3]), x);
+#endif
+
+      Tboxes10[j][0][x] = Tboxes[9][0][j][in0];
+      Tboxes10[j][1][x] = Tboxes[9][1][j][in1];
+      Tboxes10[j][2][x] = Tboxes[9][2][j][in2];
+      Tboxes10[j][3][x] = Tboxes[9][3][j][in3];
+    }
+  }
 }
 
 static void ConstructXorTables(uint8_t Xor[16][16]) {

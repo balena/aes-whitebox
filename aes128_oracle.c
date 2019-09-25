@@ -49,11 +49,9 @@ void aes128_oracle_encrypt(const uint8_t in[16],
   ShiftRowsR(state);
 
   // Using T-boxes:
-  for (int y = 0; y < 4; y++) {
-    for (int x = 0; x < 4; x++) {
-      state[y][x] = Tboxes10[y][x][state[y][x]];
-    }
-  }
+  for (int j = 0; j < 4; j++)
+    for (int i = 0; i < 4; i++)
+      state[j][i] = Tboxes10[j][i][state[j][i]];
 
   // Copy the state to the output array.
   for (int i = 0; i < 4; i++)
@@ -72,11 +70,9 @@ void aes128_oracle_decrypt(const uint8_t in[16],
   };
 
   // Using T-boxes:
-  for (int x = 0; x < 4; x++) {
-    for (int y = 0; y < 4; y++) {
+  for (int x = 0; x < 4; x++)
+    for (int y = 0; y < 4; y++)
       state[y][x] = InvTboxes[9][y][x][state[y][x]];
-    }
-  }
 
   InvShiftRowsR(state);
   for (int r = 9; r > 0; r--) {
