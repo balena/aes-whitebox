@@ -178,172 +178,105 @@ static const uint8_t gf_mul[256][6] = {
   { 0xe7, 0x19, 0x4f, 0xa8, 0x9a, 0x83 }, { 0xe5, 0x1a, 0x46, 0xa3, 0x97, 0x8d }
 };
 
+static const int ShiftRowsTab[16] = {
+   0,  5, 10, 15,
+   4,  9, 14,  3,
+   8, 13,  2,  7,
+  12,  1,  6, 11,
+};
+
+static const int InvShiftRowsTab[16] = {
+   0, 13, 10,  7,
+   4,  1, 14, 11,
+   8,  5,  2, 15,
+  12,  9,  6,  3,
+};
+
 // Performs the AddRoundKey step. Each round has its own pre-generated 16-byte key in the
 // form of 4 integers (the "w" array). Each integer is XOR'd by one column of the state.
 // Also performs the job of InvAddRoundKey(); since the function is a simple XOR process,
 // it is its own inverse.
-static void AddRoundKey(uint8_t state[4][4], const uint32_t roundKey[4]) {
+static void AddRoundKey(uint8_t state[16], const uint32_t roundKey[4]) {
   // Subkeys 1 to 4
   for (unsigned i = 0; i < 4; i++)
     for (unsigned j = 0; j < 4; j++)
-      state[j][i] ^= roundKey[i] >> ((3 - j) * 8);
+      state[i*4 + j] ^= roundKey[i] >> ((3 - j) * 8);
 }
 
 // This second version already considers the state already shifted by ShiftRows
-static void AddRoundKeyAfterShift(uint8_t state[4][4], const uint32_t roundKey[4]) {
+static void AddRoundKeyAfterShift(uint8_t state[16], const uint32_t roundKey[4]) {
   // Subkeys 1 to 4, but already shifted
   for (unsigned i = 0; i < 4; i++)
     for (unsigned j = 0; j < 4; j++)
-      state[i][j] ^= roundKey[(j+i) % 4] >> ((3 - i) * 8);
+      state[i*4 + j] ^= roundKey[(j+i) % 4] >> ((3 - j) * 8);
 }
 
 // Performs the SubBytes step. All bytes in the state are substituted with a
 // pre-calculated value from a lookup table.
-static void SubBytes(uint8_t state[4][4]) {
+static void SubBytes(uint8_t state[16]) {
   for (int i = 0; i < 4; i++)
     for (int j = 0; j < 4; j++)
-      state[i][j] = Sbox[state[i][j] >> 4][state[i][j] & 0x0f];
+      state[i*4 + j] = Sbox[state[i*4 + j] >> 4][state[i*4 + j] & 0x0f];
 }
 
-static void InvSubBytes(uint8_t state[4][4]) {
+static void InvSubBytes(uint8_t state[16]) {
   for (int i = 0; i < 4; i++)
     for (int j = 0; j < 4; j++)
-      state[i][j] = InvSbox[state[i][j] >> 4][state[i][j] & 0x0f];
+      state[i*4 + j] = InvSbox[state[i*4 + j] >> 4][state[i*4 + j] & 0x0f];
 }
 
 // Performs the ShiftRows step. All rows are shifted cylindrically to the left.
-static void ShiftRows(uint8_t state[4][4]) {
-  uint8_t t;
+static void ShiftRows(uint8_t state[16]) {
+  const uint8_t in[16] = {
+    state[ 0], state[ 1], state[ 2], state[ 3],
+    state[ 4], state[ 5], state[ 6], state[ 7],
+    state[ 8], state[ 9], state[10], state[11],
+    state[12], state[13], state[14], state[15],
+  };
 
-  // Shift left by 1
-  t = state[1][0];
-      state[1][0] = state[1][1];
-      state[1][1] = state[1][2];
-      state[1][2] = state[1][3];
-      state[1][3] = t;
-
-  // Shift left by 2
-  t = state[2][0];
-      state[2][0] = state[2][2];
-      state[2][2] = t;
-  t = state[2][1];
-      state[2][1] = state[2][3];
-      state[2][3] = t;
-
-  // Shift left by 3
-  t = state[3][0];
-      state[3][0] = state[3][3];
-      state[3][3] = state[3][2];
-      state[3][2] = state[3][1];
-      state[3][1] = t;
-}
-
-static void ShiftRowsR(uint8_t state[4][4]) {
-  uint8_t t;
-
-  // Shift left by 1
-  t = state[0][1];
-      state[0][1] = state[1][1];
-      state[1][1] = state[2][1];
-      state[2][1] = state[3][1];
-      state[3][1] = t;
-
-  // Shift left by 2
-  t = state[0][2];
-      state[0][2] = state[2][2];
-      state[2][2] = t;
-  t = state[1][2];
-      state[1][2] = state[3][2];
-      state[3][2] = t;
-
-  // Shift left by 3
-  t = state[0][3];
-      state[0][3] = state[3][3];
-      state[3][3] = state[2][3];
-      state[2][3] = state[1][3];
-      state[1][3] = t;
+  for (int i = 0; i < 16; i++)
+    state[i] = in[ShiftRowsTab[i]];
 }
 
 // All rows are shifted cylindrically to the right.
-static void InvShiftRows(uint8_t state[4][4]) {
-  int t;
+static void InvShiftRows(uint8_t state[16]) {
+  const uint8_t in[16] = {
+    state[ 0], state[ 1], state[ 2], state[ 3],
+    state[ 4], state[ 5], state[ 6], state[ 7],
+    state[ 8], state[ 9], state[10], state[11],
+    state[12], state[13], state[14], state[15],
+  };
 
-  // Shift right by 1
-  t = state[1][3];
-      state[1][3] = state[1][2];
-      state[1][2] = state[1][1];
-      state[1][1] = state[1][0];
-      state[1][0] = t;
-
-  // Shift right by 2
-  t = state[2][3];
-      state[2][3] = state[2][1];
-      state[2][1] = t;
-  t = state[2][2];
-      state[2][2] = state[2][0];
-      state[2][0] = t;
-
-  // Shift right by 3
-  t = state[3][3];
-      state[3][3] = state[3][0];
-      state[3][0] = state[3][1];
-      state[3][1] = state[3][2];
-      state[3][2] = t;
-}
-
-static void InvShiftRowsR(uint8_t state[4][4]) {
-  int t;
-
-  // Shift right by 1
-  t = state[3][1];
-      state[3][1] = state[2][1];
-      state[2][1] = state[1][1];
-      state[1][1] = state[0][1];
-      state[0][1] = t;
-
-  // Shift right by 2
-  t = state[3][2];
-      state[3][2] = state[1][2];
-      state[1][2] = t;
-  t = state[2][2];
-      state[2][2] = state[0][2];
-      state[0][2] = t;
-
-  // Shift right by 3
-  t = state[3][3];
-      state[3][3] = state[0][3];
-      state[0][3] = state[1][3];
-      state[1][3] = state[2][3];
-      state[2][3] = t;
+  for (int i = 0; i < 16; i++)
+    state[i] = in[InvShiftRowsTab[i]];
 }
 
 // Performs the MixColums step. The state is multiplied by itself using matrix
 // multiplication in a Galois Field 2^8. All multiplication is pre-computed in a table.
 // Addition is equivilent to XOR. (Must always make a copy of the column as the original
 // values will be destoyed.)
-static void MixColumns(uint8_t state[4][4]) {
-  // Columns 1 to 4
-  for (int j = 0; j < 4; j++) {
-    uint8_t a = state[0][j], b = state[1][j],
-            c = state[2][j], d = state[3][j];
+static void MixColumns(uint8_t state[16]) {
+  for (int i = 0; i < 4; i++) {
+    uint8_t a = state[4*i + 0], b = state[4*i + 1],
+            c = state[4*i + 2], d = state[4*i + 3];
 
-    state[0][j] = gf_mul[a][0] ^ gf_mul[b][1] ^ c ^ d;
-    state[1][j] = a ^ gf_mul[b][0] ^ gf_mul[c][1] ^ d;
-    state[2][j] = a ^ b ^ gf_mul[c][0] ^ gf_mul[d][1];
-    state[3][j] = gf_mul[a][1] ^ b ^ c ^ gf_mul[d][0];
+    state[4*i + 0] = gf_mul[a][0] ^ gf_mul[b][1] ^ c ^ d;
+    state[4*i + 1] = a ^ gf_mul[b][0] ^ gf_mul[c][1] ^ d;
+    state[4*i + 2] = a ^ b ^ gf_mul[c][0] ^ gf_mul[d][1];
+    state[4*i + 3] = gf_mul[a][1] ^ b ^ c ^ gf_mul[d][0];
   }
 }
 
-static void InvMixColumns(uint8_t state[4][4]) {
+static void InvMixColumns(uint8_t state[16]) {
   // Columns 1 to 4
   for (int i = 0; i < 4; i++) {
-    uint8_t a = state[0][i], b = state[1][i],
-            c = state[2][i], d = state[3][i];
+    uint8_t a = state[4*i + 0], b = state[4*i + 1],
+            c = state[4*i + 2], d = state[4*i + 3];
 
-    state[0][i] = gf_mul[a][5] ^ gf_mul[b][3] ^ gf_mul[c][4] ^ gf_mul[d][2];
-    state[1][i] = gf_mul[a][2] ^ gf_mul[b][5] ^ gf_mul[c][3] ^ gf_mul[d][4];
-    state[2][i] = gf_mul[a][4] ^ gf_mul[b][2] ^ gf_mul[c][5] ^ gf_mul[d][3];
-    state[3][i] = gf_mul[a][3] ^ gf_mul[b][4] ^ gf_mul[c][2] ^ gf_mul[d][5];
+    state[i*4 + 0] = gf_mul[a][5] ^ gf_mul[b][3] ^ gf_mul[c][4] ^ gf_mul[d][2];
+    state[i*4 + 1] = gf_mul[a][2] ^ gf_mul[b][5] ^ gf_mul[c][3] ^ gf_mul[d][4];
+    state[i*4 + 2] = gf_mul[a][4] ^ gf_mul[b][2] ^ gf_mul[c][5] ^ gf_mul[d][3];
+    state[i*4 + 3] = gf_mul[a][3] ^ gf_mul[b][4] ^ gf_mul[c][2] ^ gf_mul[d][5];
   }
 }
 

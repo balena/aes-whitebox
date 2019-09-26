@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "aes128.h"
 
 #include "aes128_internal.c"
@@ -10,16 +12,12 @@ void aes128_expand_keys(const uint8_t key[16],
 void aes128_encrypt(const uint8_t in[16],
     uint8_t out[16],
     const uint32_t roundKey[44]) {
-  uint8_t state[4][4];
-
-  // Copy input array (should be 16 bytes long) to a matrix (sequential bytes are ordered
-  // by row, not col) called "state" for processing.
-  // *** Implementation note: The official AES documentation references the state by
-  // column, then row. Accessing an element in C requires row then column. Thus, all state
-  // references in AES must have the column and row indexes reversed for C implementation.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      state[j][i] = in[i*4 + j];
+  uint8_t state[16] = {
+    in[ 0], in[ 1], in[ 2], in[ 3],
+    in[ 4], in[ 5], in[ 6], in[ 7],
+    in[ 8], in[ 9], in[10], in[11],
+    in[12], in[13], in[14], in[15],
+  };
 
   // Perform the necessary number of rounds. The round key is added first.
   // The last round does not perform the MixColumns step.
@@ -35,20 +33,19 @@ void aes128_encrypt(const uint8_t in[16],
   AddRoundKey(state, &roundKey[40]);
 
   // Copy the state to the output array.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      out[i*4 + j] = state[j][i];
+  for (int i = 0; i < 16; i++)
+    out[i] = state[i];
 }
 
 void aes128_decrypt(const uint8_t in[16],
     uint8_t out[16],
     const uint32_t roundKey[44]) {
-  uint8_t state[4][4];
-
-  // Copy the input to the state.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      state[j][i] = in[i*4 + j];
+  uint8_t state[16] = {
+    in[ 0], in[ 1], in[ 2], in[ 3],
+    in[ 4], in[ 5], in[ 6], in[ 7],
+    in[ 8], in[ 9], in[10], in[11],
+    in[12], in[13], in[14], in[15],
+  };
 
   // Perform the necessary number of rounds. The round key is added first.
   // The last round does not perform the MixColumns step.
@@ -66,5 +63,5 @@ void aes128_decrypt(const uint8_t in[16],
   // Copy the state to the output array.
   for (int i = 0; i < 4; i++)
     for (int j = 0; j < 4; j++)
-      out[i*4 + j] = state[j][i];
+      out[i*4 + j] = state[i*4 + j];
 }

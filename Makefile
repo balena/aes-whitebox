@@ -30,8 +30,5 @@ aes128_tests: aes128_tests.o libaes128.a libaes128_oracle.a
 	$(CC) $(LDFLAGS) $^ -o $@
 	./aes128_tests
 
-test: test.o
-	$(CC) $(LDFLAGS) $^ -o $@
-
 clean:
 	rm -f *.o *.a aes128_oracle_tables.c aes128_oracle_gen aes128_tests
