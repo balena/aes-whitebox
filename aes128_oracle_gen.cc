@@ -302,10 +302,30 @@ static void CalculateTyBoxes(uint32_t roundKey[44],
   }
 }
 
-static void ConstructXorTables(uint8_t Xor[16][16]) {
-  for (int i = 0; i < 16; i++)
-    for (int j = 0; j < 16; j++)
-      Xor[i][j] = i ^ j;
+static void GenerateXorTable(FILE* out) {
+  uint8_t Xor[9][96][16][16];
+  for (int r = 0; r < 9; r++)
+    for (int n = 0; n < 96; n++)
+      for (int i = 0; i < 16; i++)
+        for (int j = 0; j < 16; j++)
+          Xor[r][n][i][j] = i ^ j;
+
+  fprintf(out, "static const uint8_t Xor[9][96][16][16] = {\n");
+  for (int r = 0; r < 9; r++) {
+    fprintf(out, "  {\n");
+    for (int n = 0; n < 96; n++) {
+      fprintf(out, "    {\n");
+      for (int i = 0; i < 16; i++) {
+        fprintf(out, "      { ");
+        for (int j = 0; j < 16; j++)
+          fprintf(out, "0x%02x, ", Xor[r][n][i][j]);
+        fprintf(out, "},\n");
+      }
+      fprintf(out, "    },\n");
+    }
+    fprintf(out, "  },\n");
+  }
+  fprintf(out, "};\n\n");
 }
 
 static void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
@@ -429,6 +449,7 @@ static void GenerateTables(const uint8_t key[16]) {
 
   ExpandKeys(key, roundKey);
 
+  GenerateXorTable(out);
   GenerateEncryptingTables(out, roundKey);
   GenerateDecryptingTables(out, roundKey);
 
