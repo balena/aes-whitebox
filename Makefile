@@ -21,7 +21,7 @@ aes128_oracle_gen: aes128_oracle_gen.o
 	$(CXX) $(LDFLAGS) -lntl $^ -o $@
 
 aes128_oracle_tables.c: aes128_oracle_gen
-	./aes128_oracle_gen 80000000000000000000000000000000
+	./aes128_oracle_gen 000102030405060708090a0b0c0d0e0f
 
 libaes128_oracle.a: aes128_oracle.o
 	$(AR) $(ARFLAGS) $@ $^

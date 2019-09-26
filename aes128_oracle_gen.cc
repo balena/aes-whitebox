@@ -171,13 +171,12 @@ static void CalculateInvTy(uint32_t InvTy[4][256]) {
 }
 
 static void CalculateInvTboxes(const uint32_t roundKey[16],
-    const NTL::mat_GF2 L[9][16], const NTL::mat_GF2 MB[9][4],
     uint8_t InvTboxes[10][16][256], uint32_t InvTy[4][256],
     uint32_t MBL[9][16][256]) {
   CalculateInvTy(InvTy);
 
-  for (int x = 0; x < 256; x++) {
-    for (int r = 0; r < 10; r++) {
+  for (int r = 0; r < 10; r++) {
+    for (int x = 0; x < 256; x++) {
       uint8_t state[16] = {
         (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
         (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
@@ -196,210 +195,109 @@ static void CalculateInvTboxes(const uint32_t roundKey[16],
   }
 }
 
-static void print_state(uint8_t state[16]) {
-  printf("[");
-  for (int i = 0; i < 4; i++) {
-    printf("[%d, %d, %d, %d]\n",
-        state[i*4 + 0], state[i*4 + 1],
-        state[i*4 + 2], state[i*4 + 3]);
-  }
-  printf("]\n");
-}
+static void CalculateTyBoxes(uint32_t roundKey[44],
+    uint32_t Tyboxes[9][16][256], uint8_t Tboxes10[16][256],
+    uint32_t MBL[9][16][256], bool enableL, bool enableMB) {
+  uint8_t Tboxes[10][16][256];
+  uint8_t Ty[4][256][4];
 
-static void CalculateTyBoxes(const uint8_t Tboxes[10][16][256],
-    const uint8_t Ty[4][256][4], const NTL::mat_GF2 L[9][16],
-    const NTL::mat_GF2 MB[9][4], uint32_t Tyboxes[9][16][256],
-    uint8_t Tboxes10[16][256], uint32_t MBL[9][16][256]) {
-#if 0
-  {
-    uint8_t state[4][4] = {
-      {  0,  1,  2,  3, },
-      {  4,  5,  6,  7, },
-      {  8,  9, 10, 11, },
-      { 12, 13, 14, 15, },
-    };
+  NTL::mat_GF2 L[9][16], MB[9][4];
 
-    for (int r = 0; r < 9; r++) {
-      printf("-- Round %d:\n", r);
-      print_state(state);
+  Generate8x8MixingBijections(L);
+  Generate32x32MixingBijections(MB);
 
-      ShiftRowsR(state);
-
-      if (r > 0) {
-        for (int i = 0; i < 4; i++)
-          for (int j = 0; j < 4; j++)
-            state[i][j] = mul<uint8_t>(NTL::inv(L[r-1][i][j]), state[i][j]);
-
-        printf(">> After decoding with inv(L[%d][i][j]):\n", r);
-        print_state(state);
-      }
-
-      for (int j = 0; j < 4; j++) {
-        uint32_t out0 = mul<uint32_t>(MB[r][j], state[j][0] << 24);
-        uint32_t out1 = mul<uint32_t>(MB[r][j], state[j][1] << 16);
-        uint32_t out2 = mul<uint32_t>(MB[r][j], state[j][2] <<  8);
-        uint32_t out3 = mul<uint32_t>(MB[r][j], state[j][3] <<  0);
-
-        uint32_t result = out0 ^ out1 ^ out2 ^ out3;
-        state[j][0] = result >> 24;
-        state[j][1] = result >> 16;
-        state[j][2] = result >>  8;
-        state[j][3] = result >>  0;
-      }
-
-      for (int j = 0; j < 4; j++) {
-        uint32_t out0 = mul<uint32_t>(NTL::inv(MB[r][j]), state[j][0] << 24);
-        uint32_t out1 = mul<uint32_t>(NTL::inv(MB[r][j]), state[j][1] << 16);
-        uint32_t out2 = mul<uint32_t>(NTL::inv(MB[r][j]), state[j][2] <<  8);
-        uint32_t out3 = mul<uint32_t>(NTL::inv(MB[r][j]), state[j][3] <<  0);
-
-        uint32_t result = out0 ^ out1 ^ out2 ^ out3;
-        state[j][0] = result >> 24;
-        state[j][1] = result >> 16;
-        state[j][2] = result >>  8;
-        state[j][3] = result >>  0;
-      }
-
-      for (int i = 0; i < 4; i++) {
-        for (int j = 0; j < 4; j++) {
-          state[i][j] =
-            mul<uint8_t>(L[r][preshift[i][j] >> 2][preshift[i][j] & 0x3], state[i][j]);
-        }
-      }
-
-      printf(">> After encoding with L[%d][i][j]:\n", r);
-      print_state(state);
-    }
-
-    printf("-- Round %d:\n", 9);
-    print_state(state);
-
-    ShiftRowsR(state);
-
-    for (int i = 0; i < 4; i++)
-      for (int j = 0; j < 4; j++)
-        state[i][j] = mul<uint8_t>(NTL::inv(L[8][i][j]), state[i][j]);
-
-    printf(">> After decoding with inv(L[%d][i][j]):\n", 0);
-    print_state(state);
-  }
-#endif
-
-#define ENABLE_L 1
-#define ENABLE_MB 1
+  CalculateTboxes(roundKey, Tboxes);
+  CalculateTy(Ty);
 
   for (int r = 0; r < 9; r++) {
     for (int x = 0; x < 256; x++) {
-      uint8_t state[16] = {
-        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
-        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
-        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
-        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
-      };
-
-#if ENABLE_L
-      if (r > 0)
-        for (int i = 0; i < 16; i++)
-          state[i] = mul<uint8_t>(NTL::inv(L[r-1][0]), state[i]);
-#endif
-
       for (int j = 0; j < 4; j++) {
-        uint8_t in0 = state[j*4 + 0], in1 = state[j*4 + 1],
-                in2 = state[j*4 + 2], in3 = state[j*4 + 3];
-
-        uint8_t a0 = Ty[0][Tboxes[r][j*4 + 0][in0]][0],
-                b0 = Ty[0][Tboxes[r][j*4 + 1][in0]][1],
-                c0 = Ty[0][Tboxes[r][j*4 + 2][in0]][2],
-                d0 = Ty[0][Tboxes[r][j*4 + 3][in0]][3];
-
-        uint8_t a1 = Ty[1][Tboxes[r][j*4 + 0][in1]][0],
-                b1 = Ty[1][Tboxes[r][j*4 + 1][in1]][1],
-                c1 = Ty[1][Tboxes[r][j*4 + 2][in1]][2],
-                d1 = Ty[1][Tboxes[r][j*4 + 3][in1]][3];
-
-        uint8_t a2 = Ty[2][Tboxes[r][j*4 + 0][in2]][0],
-                b2 = Ty[2][Tboxes[r][j*4 + 1][in2]][1],
-                c2 = Ty[2][Tboxes[r][j*4 + 2][in2]][2],
-                d2 = Ty[2][Tboxes[r][j*4 + 3][in2]][3];
-
-        uint8_t a3 = Ty[3][Tboxes[r][j*4 + 0][in3]][0],
-                b3 = Ty[3][Tboxes[r][j*4 + 1][in3]][1],
-                c3 = Ty[3][Tboxes[r][j*4 + 2][in3]][2],
-                d3 = Ty[3][Tboxes[r][j*4 + 3][in3]][3];
-
-#if !ENABLE_MB
-        uint32_t out0 = (a0 << 24) | (a1 << 16) | (a2 << 8) | a3;
-        uint32_t out1 = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
-        uint32_t out2 = (c0 << 24) | (c1 << 16) | (c2 << 8) | c3;
-        uint32_t out3 = (d0 << 24) | (d1 << 16) | (d2 << 8) | d3;
-#else
-        uint32_t out0 = mul<uint32_t>(MB[r][j], (a0 << 24) | (a1 << 16) | (a2 << 8) | a3);
-        uint32_t out1 = mul<uint32_t>(MB[r][j], (b0 << 24) | (b1 << 16) | (b2 << 8) | b3);
-        uint32_t out2 = mul<uint32_t>(MB[r][j], (c0 << 24) | (c1 << 16) | (c2 << 8) | c3);
-        uint32_t out3 = mul<uint32_t>(MB[r][j], (d0 << 24) | (d1 << 16) | (d2 << 8) | d3);
-#endif
-
-        Tyboxes[r][j*4 + 0][x] = out0;
-        Tyboxes[r][j*4 + 1][x] = out1;
-        Tyboxes[r][j*4 + 2][x] = out2;
-        Tyboxes[r][j*4 + 3][x] = out3;
-      }
-    }
-
-    for (int j = 0; j < 4; j++) {
-      for (int x = 0; x < 256; x++) {
-#if !ENABLE_MB
-        uint32_t lmb0 = x << 24;
-        uint32_t lmb1 = x << 16;
-        uint32_t lmb2 = x <<  8;
-        uint32_t lmb3 = x <<  0;
-#else
-        uint32_t lmb0 = mul<uint32_t>(NTL::inv(MB[r][j]), x << 24);
-        uint32_t lmb1 = mul<uint32_t>(NTL::inv(MB[r][j]), x << 16);
-        uint32_t lmb2 = mul<uint32_t>(NTL::inv(MB[r][j]), x <<  8);
-        uint32_t lmb3 = mul<uint32_t>(NTL::inv(MB[r][j]), x <<  0);
-#endif
-
-#if !ENABLE_L
-        MBL[r][j*4 + 0][x] = lmb0;
-        MBL[r][j*4 + 1][x] = lmb1;
-        MBL[r][j*4 + 2][x] = lmb2;
-        MBL[r][j*4 + 3][x] = lmb3;
-#else
-        // -- Precompute L × inv(MB) [ z1, z2, z3, z4 ], considering the input of the next round
-        MBL[r][j*4 + 0][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb0 >> 24) << 24)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb0 >> 16) << 16)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb0 >>  8) <<  8)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb0 >>  0) <<  0);
-
-        MBL[r][j*4 + 1][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb1 >> 24) << 24)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb1 >> 16) << 16)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb1 >>  8) <<  8)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb1 >>  0) <<  0);
-
-        MBL[r][j*4 + 2][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb2 >> 24) << 24)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb2 >> 16) << 16)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb2 >>  8) <<  8)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb2 >>  0) <<  0);
-
-        MBL[r][j*4 + 3][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb3 >> 24) << 24)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb3 >> 16) << 16)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb3 >>  8) <<  8)
-                           | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb3 >>  0) <<  0);
-#endif
+        for (int i = 0; i < 4; i++) {
+          uint32_t v0 = Ty[0][Tboxes[r][j*4 + i][x]][i],
+                   v1 = Ty[1][Tboxes[r][j*4 + i][x]][i],
+                   v2 = Ty[2][Tboxes[r][j*4 + i][x]][i],
+                   v3 = Ty[3][Tboxes[r][j*4 + i][x]][i];
+          Tyboxes[r][j*4 + i][x] = (v0 << 24) | (v1 << 16) | (v2 << 8) | v3;
+          MBL[r][j*4 + i][x] = x << ((3 - i) << 3);
+        }
       }
     }
   }
 
   for (int x = 0; x < 256; x++) {
     for (int i = 0; i < 16; i++) {
-#if !ENABLE_L
-      uint8_t in = x;
-#else
-      // -- Precompute Tbox × inv(L)
-      uint8_t in = mul<uint8_t>(NTL::inv(L[8][0]), x);
-#endif
-      Tboxes10[i][x] = Tboxes[9][i][in];
+      Tboxes10[i][x] = Tboxes[9][i][x];
+    }
+  }
+
+  if (enableMB) {
+    // When applying MB and inv(MB), the operation is quite easy; there is no
+    // need to safeguard the existing table, as it is a simple substitution. 
+    for (int r = 0; r < 9; r++) {
+      for (int x = 0; x < 256; x++) {
+        for (int i = 0; i < 4; i++) {
+          Tyboxes[r][i][x] = mul<uint32_t>(MB[r][i >> 2], Tyboxes[r][i][x]);
+          MBL[r][i][x] = mul<uint32_t>(NTL::inv(MB[r][i >> 2]), MBL[r][i][x]);
+        }
+      }
+    }
+  }
+
+  if (enableL) {
+    // When applying L and inv(L), things get a little tricky. As it involves
+    // non-linear substitutions, the original table has to be copied before
+    // being updated.
+    for (int r = 0; r < 9; r++) {
+      
+      if (r > 0) {
+        // Rounds 1 to 8 are reversed here.
+        for (int i = 0; i < 16; i++) {
+          uint32_t oldTyboxes[256];
+          for (int x = 0; x < 256; x++)
+            oldTyboxes[x] = Tyboxes[r][i][x];
+          for (int x = 0; x < 256; x++)
+            Tyboxes[r][i][x] = oldTyboxes[mul<uint8_t>(NTL::inv(L[r-1][i]), x)];
+        }
+      }
+  
+      // Apply the L transformation at each round.
+      for (int j = 0; j < 4; ++j) {
+        for (int x = 0; x < 256; x++) {
+          uint32_t out0 = MBL[r][j*4 + 0][x];
+          uint32_t out1 = MBL[r][j*4 + 1][x];
+          uint32_t out2 = MBL[r][j*4 + 2][x];
+          uint32_t out3 = MBL[r][j*4 + 3][x];
+  
+          MBL[r][j*4 + 0][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 0]], out0 >> 24) << 24)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 1]], out0 >> 16) << 16)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 2]], out0 >>  8) <<  8)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 3]], out0 >>  0) <<  0);
+  
+          MBL[r][j*4 + 1][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 0]], out1 >> 24) << 24)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 1]], out1 >> 16) << 16)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 2]], out1 >>  8) <<  8)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 3]], out1 >>  0) <<  0);
+  
+          MBL[r][j*4 + 2][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 0]], out2 >> 24) << 24)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 1]], out2 >> 16) << 16)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 2]], out2 >>  8) <<  8)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 3]], out2 >>  0) <<  0);
+  
+          MBL[r][j*4 + 3][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 0]], out3 >> 24) << 24)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 1]], out3 >> 16) << 16)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 2]], out3 >>  8) <<  8)
+                             | (mul<uint8_t>(L[r][InvShiftRowsTab[j*4 + 3]], out3 >>  0) <<  0);
+        }
+      }
+    }
+  
+    // The last and final round 9 is reversed here.
+    for (int i = 0; i < 16; i++) {
+      uint8_t oldTboxes10[256];
+      for (int x = 0; x < 256; x++)
+        oldTboxes10[x] = Tboxes10[i][x];
+      for (int x = 0; x < 256; x++)
+        Tboxes10[i][x] = oldTboxes10[mul<uint8_t>(NTL::inv(L[8][i]), x)];
     }
   }
 }
@@ -410,34 +308,12 @@ static void ConstructXorTables(uint8_t Xor[16][16]) {
       Xor[i][j] = i ^ j;
 }
 
-static void GenerateTables(const uint8_t key[16]) {
-  uint32_t roundKey[44];
-
-  uint8_t Tboxes[10][16][256];
-  uint8_t Ty[4][256][4];
-
+static void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
   uint32_t Tyboxes[9][16][256];
   uint8_t Tboxes10[16][256];
+  uint32_t MBL[9][16][256];
 
-  uint8_t InvTboxes[10][16][256];
-  uint32_t InvTy[4][256];
-
-  NTL::mat_GF2 L[9][16], MB[9][4];
-
-  uint32_t MBL[9][16][256], InvMBL[9][16][256];
-
-  FILE* out = fopen("aes128_oracle_tables.c", "w");
-
-  ExpandKeys(key, roundKey);
-
-  CalculateTboxes(roundKey, Tboxes);
-  CalculateTy(Ty);
-
-  Generate8x8MixingBijections(L);
-  Generate32x32MixingBijections(MB);
-
-  CalculateTyBoxes(Tboxes, Ty, L, MB, Tyboxes, Tboxes10, MBL);
-  CalculateInvTboxes(roundKey, L, MB, InvTboxes, InvTy, InvMBL);
+  CalculateTyBoxes(roundKey, Tyboxes, Tboxes10, MBL, true, true);
 
   fprintf(out, "static const uint32_t Tyboxes[9][16][256] = {\n");
   for (int r = 0; r < 9; r++) {
@@ -477,6 +353,37 @@ static void GenerateTables(const uint8_t key[16]) {
   }
   fprintf(out, "};\n\n");
 
+  fprintf(out, "static const uint32_t MBL[9][16][256] = {\n");
+  for (int r = 0; r < 9; r++) {
+    fprintf(out, "  {\n");
+    for (int i = 0; i < 16; i++) {
+      fprintf(out, "    {\n");
+      for (int x = 0; x < 256; x++) {
+        if ((x % 8) == 0) {
+          fprintf(out, "      ");
+        }
+        fprintf(out, "0x%08x,", MBL[r][i][x]);
+        if (x > 0 && (x % 8) == 7) {
+          fprintf(out, "\n");
+        } else {
+          fprintf(out, " ");
+        }
+      }
+      fprintf(out, "    },\n");
+    }
+    fprintf(out, "  },\n");
+  }
+  fprintf(out, "};\n\n");
+}
+
+static void GenerateDecryptingTables(FILE* out, uint32_t roundKey[44]) {
+  uint8_t InvTboxes[10][16][256];
+  uint32_t InvTy[4][256];
+
+  uint32_t InvMBL[9][16][256];
+
+  CalculateInvTboxes(roundKey, InvTboxes, InvTy, InvMBL);
+
   fprintf(out, "static const uint8_t InvTboxes[10][16][256] = {\n");
   for (int r = 0; r < 10; r++) {
     fprintf(out, "  {\n");
@@ -514,28 +421,16 @@ static void GenerateTables(const uint8_t key[16]) {
     fprintf(out, "  },\n");
   }
   fprintf(out, "};\n\n");
+}
 
-  fprintf(out, "static const uint32_t MBL[9][16][256] = {\n");
-  for (int r = 0; r < 9; r++) {
-    fprintf(out, "  {\n");
-    for (int i = 0; i < 16; i++) {
-      fprintf(out, "    {\n");
-      for (int x = 0; x < 256; x++) {
-        if ((x % 8) == 0) {
-          fprintf(out, "      ");
-        }
-        fprintf(out, "0x%08x,", MBL[r][i][x]);
-        if (x > 0 && (x % 8) == 7) {
-          fprintf(out, "\n");
-        } else {
-          fprintf(out, " ");
-        }
-      }
-      fprintf(out, "    },\n");
-    }
-    fprintf(out, "  },\n");
-  }
-  fprintf(out, "};\n\n");
+static void GenerateTables(const uint8_t key[16]) {
+  uint32_t roundKey[44];
+  FILE* out = fopen("aes128_oracle_tables.c", "w");
+
+  ExpandKeys(key, roundKey);
+
+  GenerateEncryptingTables(out, roundKey);
+  GenerateDecryptingTables(out, roundKey);
 
   fflush(out);
   fclose(out);

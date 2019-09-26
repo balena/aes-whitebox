@@ -3,7 +3,6 @@
 #include "aes128_oracle.h"
 
 #include "aes128_internal.c"
-
 #include "aes128_oracle_tables.c"
 
 void aes128_oracle_encrypt(const uint8_t in[16],
