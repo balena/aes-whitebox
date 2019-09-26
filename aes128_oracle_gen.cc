@@ -290,20 +290,22 @@ static void CalculateTyBoxes(const uint8_t Tboxes[10][16][256],
 
   for (int r = 0; r < 9; r++) {
     for (int x = 0; x < 256; x++) {
-      for (int j = 0; j < 4; j++) {
-#if !ENABLE_L
-        uint8_t in0 = x, in1 = x, in2 = x, in3 = x;
-#else
-        // -- Precompute MB × Ty × Tbox × inv(L), except for first round
-        //uint8_t in0 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][0]), x);
-        //uint8_t in1 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][1]), x);
-        //uint8_t in2 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][2]), x);
-        //uint8_t in3 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][j][3]), x);
-        uint8_t in0 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][0]), x);
-        uint8_t in1 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][0]), x);
-        uint8_t in2 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][0]), x);
-        uint8_t in3 = (r < 1) ? x : mul<uint8_t>(NTL::inv(L[r-1][0]), x);
+      uint8_t state[16] = {
+        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
+        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
+        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
+        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
+      };
+
+#if ENABLE_L
+      if (r > 0)
+        for (int i = 0; i < 16; i++)
+          state[i] = mul<uint8_t>(NTL::inv(L[r-1][0]), state[i]);
 #endif
+
+      for (int j = 0; j < 4; j++) {
+        uint8_t in0 = state[j*4 + 0], in1 = state[j*4 + 1],
+                in2 = state[j*4 + 2], in3 = state[j*4 + 3];
 
         uint8_t a0 = Ty[0][Tboxes[r][j*4 + 0][in0]][0],
                 b0 = Ty[0][Tboxes[r][j*4 + 1][in0]][1],
@@ -341,7 +343,11 @@ static void CalculateTyBoxes(const uint8_t Tboxes[10][16][256],
         Tyboxes[r][j*4 + 1][x] = out1;
         Tyboxes[r][j*4 + 2][x] = out2;
         Tyboxes[r][j*4 + 3][x] = out3;
+      }
+    }
 
+    for (int j = 0; j < 4; j++) {
+      for (int x = 0; x < 256; x++) {
 #if !ENABLE_MB
         uint32_t lmb0 = x << 24;
         uint32_t lmb1 = x << 16;
@@ -361,26 +367,6 @@ static void CalculateTyBoxes(const uint8_t Tboxes[10][16][256],
         MBL[r][j*4 + 3][x] = lmb3;
 #else
         // -- Precompute L × inv(MB) [ z1, z2, z3, z4 ], considering the input of the next round
-        //MBL[r][j][0][x] = (mul<uint8_t>(L[r][preshift[j][0] >> 2][preshift[j][0] & 0x3], lmb0 >> 24) << 24)
-        //                | (mul<uint8_t>(L[r][preshift[j][1] >> 2][preshift[j][1] & 0x3], lmb0 >> 16) << 16)
-        //                | (mul<uint8_t>(L[r][preshift[j][2] >> 2][preshift[j][2] & 0x3], lmb0 >>  8) <<  8)
-        //                | (mul<uint8_t>(L[r][preshift[j][3] >> 2][preshift[j][3] & 0x3], lmb0 >>  0) <<  0);
-       
-        //MBL[r][j][1][x] = (mul<uint8_t>(L[r][preshift[j][0] >> 2][preshift[j][0] & 0x3], lmb1 >> 24) << 24)
-        //                | (mul<uint8_t>(L[r][preshift[j][1] >> 2][preshift[j][1] & 0x3], lmb1 >> 16) << 16)
-        //                | (mul<uint8_t>(L[r][preshift[j][2] >> 2][preshift[j][2] & 0x3], lmb1 >>  8) <<  8)
-        //                | (mul<uint8_t>(L[r][preshift[j][3] >> 2][preshift[j][3] & 0x3], lmb1 >>  0) <<  0);
-       
-        //MBL[r][j][2][x] = (mul<uint8_t>(L[r][preshift[j][0] >> 2][preshift[j][0] & 0x3], lmb2 >> 24) << 24)
-        //                | (mul<uint8_t>(L[r][preshift[j][1] >> 2][preshift[j][1] & 0x3], lmb2 >> 16) << 16)
-        //                | (mul<uint8_t>(L[r][preshift[j][2] >> 2][preshift[j][2] & 0x3], lmb2 >>  8) <<  8)
-        //                | (mul<uint8_t>(L[r][preshift[j][3] >> 2][preshift[j][3] & 0x3], lmb2 >>  0) <<  0);
-       
-        //MBL[r][j][3][x] = (mul<uint8_t>(L[r][preshift[j][0] >> 2][preshift[j][0] & 0x3], lmb3 >> 24) << 24)
-        //                | (mul<uint8_t>(L[r][preshift[j][1] >> 2][preshift[j][1] & 0x3], lmb3 >> 16) << 16)
-        //                | (mul<uint8_t>(L[r][preshift[j][2] >> 2][preshift[j][2] & 0x3], lmb3 >>  8) <<  8)
-        //                | (mul<uint8_t>(L[r][preshift[j][3] >> 2][preshift[j][3] & 0x3], lmb3 >>  0) <<  0);
-
         MBL[r][j*4 + 0][x] = (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb0 >> 24) << 24)
                            | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb0 >> 16) << 16)
                            | (mul<uint8_t>(L[r][InvShiftRowsTab[0]], lmb0 >>  8) <<  8)
@@ -406,21 +392,14 @@ static void CalculateTyBoxes(const uint8_t Tboxes[10][16][256],
   }
 
   for (int x = 0; x < 256; x++) {
-    for (int j = 0; j < 4; j++) {
+    for (int i = 0; i < 16; i++) {
 #if !ENABLE_L
-      uint8_t in0 = x, in1 = x, in2 = x, in3 = x;
+      uint8_t in = x;
 #else
       // -- Precompute Tbox × inv(L)
-      //uint8_t in = mul<uint8_t>(NTL::inv(L[8][i][j]), x);
-      uint8_t in0 = mul<uint8_t>(NTL::inv(L[8][0]), x);
-      uint8_t in1 = mul<uint8_t>(NTL::inv(L[8][0]), x);
-      uint8_t in2 = mul<uint8_t>(NTL::inv(L[8][0]), x);
-      uint8_t in3 = mul<uint8_t>(NTL::inv(L[8][0]), x);
+      uint8_t in = mul<uint8_t>(NTL::inv(L[8][0]), x);
 #endif
-      Tboxes10[j*4 + 0][x] = Tboxes[9][j*4 + 0][in0];
-      Tboxes10[j*4 + 1][x] = Tboxes[9][j*4 + 1][in1];
-      Tboxes10[j*4 + 2][x] = Tboxes[9][j*4 + 2][in2];
-      Tboxes10[j*4 + 3][x] = Tboxes[9][j*4 + 3][in3];
+      Tboxes10[i][x] = Tboxes[9][i][in];
     }
   }
 }
