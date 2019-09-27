@@ -29,12 +29,7 @@ void ShiftRows(uint8_t state[16]) {
     state[i] = in[shifts[i]];
 }
 
-}  // namespace
-
-extern "C" {
-
-void aes128_oracle_encrypt(const uint8_t in[16],
-    uint8_t out[16]) {
+void Cipher(const uint8_t in[16], uint8_t out[16]) {
   // Copy the input to the state.
   uint8_t state[16] = {
     in[ 0], in[ 1], in[ 2], in[ 3],
@@ -120,6 +115,10 @@ void aes128_oracle_encrypt(const uint8_t in[16],
     out[i] = Tboxes10[i][state[i]];
 }
 
+}  // namespace
+
+extern "C" {
+
 void aes128_oracle_encrypt_cfb(const uint8_t iv[16], const uint8_t* m,
     size_t len, uint8_t* c) {
   uint8_t cfb_blk[16];
@@ -130,7 +129,7 @@ void aes128_oracle_encrypt_cfb(const uint8_t iv[16], const uint8_t* m,
     cfb_blk[i] = iv[i];
 
   for (size_t j = 0; j < (len / 16); j++) {
-    aes128_oracle_encrypt(cfb_blk, cfb_blk);
+    Cipher(cfb_blk, cfb_blk);
     for (size_t i = 0; i < 16; i++) {
       cfb_blk[i] ^= m[j*16 + i];
       c[j*16 + i] = cfb_blk[i];
@@ -148,7 +147,7 @@ void aes128_oracle_decrypt_cfb(const uint8_t iv[16], const uint8_t* c,
     cfb_blk[i] = iv[i];
 
   for (size_t j = 0; j < (len / 16); j++) {
-    aes128_oracle_encrypt(cfb_blk, cfb_blk);
+    Cipher(cfb_blk, cfb_blk);
     for (size_t i = 0; i < 16; i++) {
       m[j*16 + i] = cfb_blk[i] ^ c[j*16 + i];
       cfb_blk[i] = c[j*16 + i];
