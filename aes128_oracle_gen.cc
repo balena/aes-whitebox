@@ -201,11 +201,6 @@ static void CalculateTyBoxes(uint32_t roundKey[44],
   uint8_t Tboxes[10][16][256];
   uint8_t Ty[4][256][4];
 
-  NTL::mat_GF2 L[9][16], MB[9][4];
-
-  Generate8x8MixingBijections(L);
-  Generate32x32MixingBijections(MB);
-
   CalculateTboxes(roundKey, Tboxes);
   CalculateTy(Ty);
 
@@ -231,6 +226,9 @@ static void CalculateTyBoxes(uint32_t roundKey[44],
   }
 
   if (enableMB) {
+    NTL::mat_GF2 MB[9][4];
+    Generate32x32MixingBijections(MB);
+
     // When applying MB and inv(MB), the operation is quite easy; there is no
     // need to safeguard the existing table, as it is a simple substitution. 
     for (int r = 0; r < 9; r++) {
@@ -244,6 +242,9 @@ static void CalculateTyBoxes(uint32_t roundKey[44],
   }
 
   if (enableL) {
+    NTL::mat_GF2 L[9][16];
+    Generate8x8MixingBijections(L);
+
     // When applying L and inv(L), things get a little tricky. As it involves
     // non-linear substitutions, the original table has to be copied before
     // being updated.
