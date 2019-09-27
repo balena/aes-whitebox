@@ -23,9 +23,9 @@ So, care should be taken before using this implementation.
 
 ## How to use
 
-- *aes128.cc*, *aes128.h* and *aes128_private.h" implement the standard AES-128 encryption, used only as an implementation reference and can be easily removed from the final build.
-- *aes128_oracle_gen.cc* contains the AES-128 'compiler' (the tool that generates the WBC tables), that generates the *aes128_oracle_tables.cc* file.
-- *aes128_oracle.h* and *aes128_oracle.cc* contain the AES-128 implementation that consumes the *aes128_oracle_tables.cc*.
+- `aes128.cc`, `aes128.h` and `aes128_private.h` implement the standard AES-128 encryption, used only as an implementation reference and can be easily removed from the final build.
+- `aes128_oracle_gen.cc` contains the AES-128 'compiler' (the tool that generates the WBC tables), that generates the `aes128_oracle_tables.cc` file that contains the cipher tables.
+- `aes128_oracle.h` and `aes128_oracle.cc` contain the AES-128 implementation that consumes the `aes128_oracle_tables.cc`.
 
 So for a final build, you must (1) compile the `aes128_oracle_gen` tool, (2) generate the `aes128_oracle_tables.cc` source file using it and add `aes128_oracle.h` together with `aes128_oracle.cc` to the final build.
 
@@ -34,10 +34,8 @@ The accompanying `Makefile` performs all steps in a single execution, including 
 The final API is just:
 
 ```
-void aes128_oracle_encrypt_cfb(const uint8_t iv[16], const uint8_t* m,
-    size_t len, uint8_t* c);
-void aes128_oracle_decrypt_cfb(const uint8_t iv[16], const uint8_t* c,
-    size_t len, uint8_t* m);
+void aes128_oracle_encrypt_cfb(const uint8_t iv[16], const uint8_t* m, size_t len, uint8_t* c);
+void aes128_oracle_decrypt_cfb(const uint8_t iv[16], const uint8_t* c, size_t len, uint8_t* m);
 ```
 
 Where `iv` is the initialization vector, `m` is the message, `c` is the ciphertext and `len` is the number of bytes to encode/decode, multiple of 16 bytes.
