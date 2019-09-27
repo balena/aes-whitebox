@@ -4,8 +4,6 @@
 
 #include "aes128_oracle.h"
 
-#include <assert.h>
-
 #include "aes128_oracle_tables.cc"
 
 namespace {
@@ -115,17 +113,14 @@ void aes128_oracle_encrypt_cfb(const uint8_t iv[16], const uint8_t* m,
     size_t len, uint8_t* c) {
   uint8_t cfb_blk[16];
 
-  assert(len % 16 == 0);
-
   for (int i = 0; i < 16; i++)
     cfb_blk[i] = iv[i];
 
-  for (size_t j = 0; j < (len / 16); j++) {
-    Cipher(cfb_blk);
-    for (size_t i = 0; i < 16; i++) {
-      cfb_blk[i] ^= m[j*16 + i];
-      c[j*16 + i] = cfb_blk[i];
-    }
+  for (size_t i = 0; i < len; i++) {
+    if ((i & 0xf) == 0)
+      Cipher(cfb_blk);
+    cfb_blk[i & 0xf] ^= m[i];
+    c[i] = cfb_blk[i & 0xf];
   }
 }
 
@@ -133,17 +128,14 @@ void aes128_oracle_decrypt_cfb(const uint8_t iv[16], const uint8_t* c,
     size_t len, uint8_t* m) {
   uint8_t cfb_blk[16];
 
-  assert(len % 16 == 0);
-
   for (int i = 0; i < 16; i++)
     cfb_blk[i] = iv[i];
 
-  for (size_t j = 0; j < (len / 16); j++) {
-    Cipher(cfb_blk);
-    for (size_t i = 0; i < 16; i++) {
-      m[j*16 + i] = cfb_blk[i] ^ c[j*16 + i];
-      cfb_blk[i] = c[j*16 + i];
-    }
+  for (size_t i = 0; i < len; i++) {
+    if ((i & 0xf) == 0)
+      Cipher(cfb_blk);
+    m[i] = cfb_blk[i & 0xf] ^ c[i];
+    cfb_blk[i & 0xf] = c[i];
   }
 }
 
@@ -151,16 +143,13 @@ void aes128_oracle_encrypt_ofb(const uint8_t iv[16], const uint8_t* m,
     size_t len, uint8_t* c) {
   uint8_t cfb_blk[16];
 
-  assert(len % 16 == 0);
-
   for (int i = 0; i < 16; i++)
     cfb_blk[i] = iv[i];
 
-  for (size_t j = 0; j < (len / 16); j++) {
-    Cipher(cfb_blk);
-    for (size_t i = 0; i < 16; i++) {
-      c[j*16 + i] = m[j*16 + i] ^ cfb_blk[i];
-    }
+  for (size_t i = 0; i < len; i++) {
+    if ((i & 0xf) == 0)
+      Cipher(cfb_blk);
+    c[i] = m[i] ^ cfb_blk[i & 0xf];
   }
 }
 
@@ -173,25 +162,21 @@ void aes128_oracle_encrypt_ctr(const uint8_t nonce[16], const uint8_t* m,
     size_t len, uint8_t* c) {
   uint8_t counter[16], buf[16];
 
-  assert(len % 16 == 0);
-
   for (int i = 0; i < 16; i++)
     counter[i] = nonce[i];
 
-  for (size_t j = 0; j < (len / 16); j++) {
-    for (int i = 0; i < 16; i++)
-      buf[i] = counter[i];
-
-    Cipher(buf);
-    for (size_t i = 0; i < 16; i++) {
-      c[j*16 + i] = m[j*16 + i] ^ buf[i];
+  for (size_t i = 0; i < len; i++) {
+    if ((i & 0xf) == 0) {
+      for (int j = 0; j < 16; j++)
+        buf[j] = counter[j];
+      Cipher(buf);
+      for (int j = 15; j >= 0; j--) {
+        counter[j]++;
+        if (counter[j])
+          break;
+      }
     }
-
-    for (int i = 15; i >= 0; i--) {
-      counter[i]++;
-      if (counter[i])
-        break;
-    }
+    c[i] = m[i] ^ buf[i & 0xf];
   }
 }
 
