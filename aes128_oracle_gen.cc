@@ -4,9 +4,6 @@
 #include <string.h>
 #include <stdarg.h>
 
-#include <iostream>
-#include <fstream>
-
 #include <NTL/mat_GF2.h>
 
 #include "aes128_private.h"

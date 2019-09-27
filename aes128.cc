@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #include "aes128.h"
 #include "aes128_private.h"
 

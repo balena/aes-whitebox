@@ -1,10 +1,31 @@
-#include <stdio.h>
-#include <assert.h>
-
 #include "aes128_oracle.h"
 
-#include "aes128_private.h"
+#include <assert.h>
+
 #include "aes128_oracle_tables.cc"
+
+namespace {
+
+void ShiftRows(uint8_t state[16]) {
+  constexpr int shifts[16] = {
+     0,  5, 10, 15,
+     4,  9, 14,  3,
+     8, 13,  2,  7,
+    12,  1,  6, 11,
+  };
+
+  const uint8_t in[16] = {
+    state[ 0], state[ 1], state[ 2], state[ 3],
+    state[ 4], state[ 5], state[ 6], state[ 7],
+    state[ 8], state[ 9], state[10], state[11],
+    state[12], state[13], state[14], state[15],
+  };
+
+  for (int i = 0; i < 16; i++)
+    state[i] = in[shifts[i]];
+}
+
+}  // namespace
 
 extern "C" {
 
