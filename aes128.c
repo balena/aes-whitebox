@@ -9,6 +9,10 @@ void aes128_expand_keys(const uint8_t key[16],
   ExpandKeys(key, w);
 }
 
+// This implementation already considers the modification of steps as suggested
+// by Muir's tutorial of 2013. The same changes were applied to the decryption
+// step.
+
 void aes128_encrypt(const uint8_t in[16],
     uint8_t out[16],
     const uint32_t roundKey[44]) {
@@ -61,7 +65,6 @@ void aes128_decrypt(const uint8_t in[16],
   }
 
   // Copy the state to the output array.
-  for (int i = 0; i < 4; i++)
-    for (int j = 0; j < 4; j++)
-      out[i*4 + j] = state[i*4 + j];
+  for (int i = 0; i < 16; i++)
+    out[i] = state[i];
 }

@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <assert.h>
 
 #include "aes128_oracle.h"
 
@@ -130,4 +131,41 @@ void aes128_oracle_decrypt(const uint8_t in[16],
   // Copy the state to the output array.
   for (int i = 0; i < 16; i++)
     out[i] = state[i];
+}
+
+
+void aes128_oracle_encrypt_cfb(const uint8_t iv[16], const uint8_t* m,
+    size_t len, uint8_t* c) {
+  uint8_t cfb_blk[16];
+
+  assert(len % 16 == 0);
+
+  for (int i = 0; i < 16; i++)
+    cfb_blk[i] = iv[i];
+
+  for (size_t j = 0; j < (len / 16); j++) {
+    aes128_oracle_encrypt(cfb_blk, cfb_blk);
+    for (size_t i = 0; i < 16; i++) {
+      cfb_blk[i] ^= m[j*16 + i];
+      c[j*16 + i] = cfb_blk[i];
+    }
+  }
+}
+
+void aes128_oracle_decrypt_cfb(const uint8_t iv[16], const uint8_t* c,
+    size_t len, uint8_t* m) {
+  uint8_t cfb_blk[16];
+
+  assert(len % 16 == 0);
+
+  for (int i = 0; i < 16; i++)
+    cfb_blk[i] = iv[i];
+
+  for (size_t j = 0; j < (len / 16); j++) {
+    aes128_oracle_encrypt(cfb_blk, cfb_blk);
+    for (size_t i = 0; i < 16; i++) {
+      m[j*16 + i] = cfb_blk[i] ^ c[j*16 + i];
+      cfb_blk[i] = c[j*16 + i];
+    }
+  }
 }
