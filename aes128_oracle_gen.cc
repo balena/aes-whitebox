@@ -9,7 +9,9 @@
 
 #include <NTL/mat_GF2.h>
 
-#include "aes128_internal.c"
+#include "aes128_private.h"
+
+namespace {
 
 template<typename T>
 inline NTL::vec_GF2 from_scalar(T in);
@@ -64,7 +66,7 @@ inline T mul(const NTL::mat_GF2& mat, T x) {
   return to_scalar<T>(mat * from_scalar<T>(x));
 }
 
-static NTL::mat_GF2 GenerateGF2RandomMatrix(int dimension) {
+NTL::mat_GF2 GenerateGF2RandomMatrix(int dimension) {
   NTL::mat_GF2 mat(NTL::INIT_SIZE, dimension, dimension);
   for (int i = 0; i < dimension; i++) {
     for (int j = 0; j < dimension; j++) {
@@ -74,7 +76,7 @@ static NTL::mat_GF2 GenerateGF2RandomMatrix(int dimension) {
   return mat;
 }
 
-static NTL::mat_GF2 GenerateRandomGF2InvertibleMatrix(int dimension) {
+NTL::mat_GF2 GenerateRandomGF2InvertibleMatrix(int dimension) {
   for (;;) {
     NTL::mat_GF2 result = GenerateGF2RandomMatrix(dimension);
     if (NTL::determinant(result) != 0)
@@ -82,7 +84,7 @@ static NTL::mat_GF2 GenerateRandomGF2InvertibleMatrix(int dimension) {
   }
 }
 
-static void Generate8x8MixingBijections(NTL::mat_GF2 L[9][16]) {
+void Generate8x8MixingBijections(NTL::mat_GF2 L[9][16]) {
   for (int r = 0; r < 9; r++) {
     for (int i = 0; i < 16; i++) {
       L[r][i] = GenerateRandomGF2InvertibleMatrix(8);
@@ -90,7 +92,7 @@ static void Generate8x8MixingBijections(NTL::mat_GF2 L[9][16]) {
   }
 }
 
-static void Generate32x32MixingBijections(NTL::mat_GF2 MB[9][4]) {
+void Generate32x32MixingBijections(NTL::mat_GF2 MB[9][4]) {
   for (int r = 0; r < 9; r++) {
     for (int i = 0; i < 4; i++) {
       MB[r][i] = GenerateRandomGF2InvertibleMatrix(32);
@@ -100,7 +102,7 @@ static void Generate32x32MixingBijections(NTL::mat_GF2 MB[9][4]) {
 
 // Calculate the T-boxes, which is a combination of the AddRoundKeyAfterShift
 // and the SubBytes functions.
-static void CalculateTboxes(const uint32_t roundKey[44],
+void CalculateTboxes(const uint32_t roundKey[44],
     uint8_t Tboxes[10][16][256]) {
   for (int r = 0; r < 10; r++) {
     for (int x = 0; x < 256; x++) {
@@ -122,7 +124,7 @@ static void CalculateTboxes(const uint32_t roundKey[44],
   }
 }
 
-static void CalculateTy(uint8_t Ty[4][256][4]) {
+void CalculateTy(uint8_t Ty[4][256][4]) {
   for (int x = 0; x < 256; x++) {
     Ty[0][x][0] = gf_mul[x][0];
     Ty[0][x][1] = gf_mul[x][1];
@@ -146,56 +148,7 @@ static void CalculateTy(uint8_t Ty[4][256][4]) {
   }
 }
 
-static void CalculateInvTy(uint32_t InvTy[4][256]) {
-  for (int x = 0; x < 256; x++) {
-    InvTy[0][x] = gf_mul[x][5] << 24
-                | gf_mul[x][3] << 16
-                | gf_mul[x][4] <<  8
-                | gf_mul[x][2] <<  0;
-
-    InvTy[1][x] = gf_mul[x][2] << 24
-                | gf_mul[x][5] << 16
-                | gf_mul[x][3] <<  8
-                | gf_mul[x][4] <<  0;
-
-    InvTy[2][x] = gf_mul[x][4] << 24
-                | gf_mul[x][2] << 16
-                | gf_mul[x][5] <<  8
-                | gf_mul[x][3] <<  0;
-
-    InvTy[3][x] = gf_mul[x][3] << 24
-                | gf_mul[x][4] << 16
-                | gf_mul[x][2] <<  8
-                | gf_mul[x][5] <<  0;
-  }
-}
-
-static void CalculateInvTboxes(const uint32_t roundKey[16],
-    uint8_t InvTboxes[10][16][256], uint32_t InvTy[4][256],
-    uint32_t MBL[9][16][256]) {
-  CalculateInvTy(InvTy);
-
-  for (int r = 0; r < 10; r++) {
-    for (int x = 0; x < 256; x++) {
-      uint8_t state[16] = {
-        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
-        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
-        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
-        (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x
-      };
-      if (r == 9) {
-        AddRoundKey(state, &roundKey[40]);
-      }
-      InvSubBytes(state);
-      AddRoundKeyAfterShift(state, &roundKey[r*4]);
-      for (int i = 0; i < 16; i++) {
-        InvTboxes[r][i][x] = state[i];
-      }
-    }
-  }
-}
-
-static void CalculateTyBoxes(uint32_t roundKey[44],
+void CalculateTyBoxes(uint32_t roundKey[44],
     uint32_t Tyboxes[9][16][256], uint8_t Tboxes10[16][256],
     uint32_t MBL[9][16][256], bool enableL, bool enableMB) {
   uint8_t Tboxes[10][16][256];
@@ -303,7 +256,7 @@ static void CalculateTyBoxes(uint32_t roundKey[44],
   }
 }
 
-static void GenerateXorTable(FILE* out) {
+void GenerateXorTable(FILE* out) {
   uint8_t Xor[9][96][16][16];
   for (int r = 0; r < 9; r++)
     for (int n = 0; n < 96; n++)
@@ -311,7 +264,7 @@ static void GenerateXorTable(FILE* out) {
         for (int j = 0; j < 16; j++)
           Xor[r][n][i][j] = i ^ j;
 
-  fprintf(out, "static const uint8_t Xor[9][96][16][16] = {\n");
+  fprintf(out, "constexpr uint8_t Xor[9][96][16][16] = {\n");
   for (int r = 0; r < 9; r++) {
     fprintf(out, "  {\n");
     for (int n = 0; n < 96; n++) {
@@ -329,14 +282,14 @@ static void GenerateXorTable(FILE* out) {
   fprintf(out, "};\n\n");
 }
 
-static void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
+void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
   uint32_t Tyboxes[9][16][256];
   uint8_t Tboxes10[16][256];
   uint32_t MBL[9][16][256];
 
   CalculateTyBoxes(roundKey, Tyboxes, Tboxes10, MBL, true, true);
 
-  fprintf(out, "static const uint32_t Tyboxes[9][16][256] = {\n");
+  fprintf(out, "constexpr uint32_t Tyboxes[9][16][256] = {\n");
   for (int r = 0; r < 9; r++) {
     fprintf(out, "  {\n");
     for (int i = 0; i < 16; i++) {
@@ -358,7 +311,7 @@ static void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
   }
   fprintf(out, "};\n\n");
 
-  fprintf(out, "static const uint8_t Tboxes10[16][256] = {\n");
+  fprintf(out, "constexpr uint8_t Tboxes10[16][256] = {\n");
   for (int i = 0; i < 16; i++) {
     fprintf(out, "  {\n");
     for (int x = 0; x < 256; x++) {
@@ -374,7 +327,7 @@ static void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
   }
   fprintf(out, "};\n\n");
 
-  fprintf(out, "static const uint32_t MBL[9][16][256] = {\n");
+  fprintf(out, "constexpr uint32_t MBL[9][16][256] = {\n");
   for (int r = 0; r < 9; r++) {
     fprintf(out, "  {\n");
     for (int i = 0; i < 16; i++) {
@@ -397,68 +350,25 @@ static void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
   fprintf(out, "};\n\n");
 }
 
-static void GenerateDecryptingTables(FILE* out, uint32_t roundKey[44]) {
-  uint8_t InvTboxes[10][16][256];
-  uint32_t InvTy[4][256];
-
-  uint32_t InvMBL[9][16][256];
-
-  CalculateInvTboxes(roundKey, InvTboxes, InvTy, InvMBL);
-
-  fprintf(out, "static const uint8_t InvTboxes[10][16][256] = {\n");
-  for (int r = 0; r < 10; r++) {
-    fprintf(out, "  {\n");
-    for (int i = 0; i < 16; i++) {
-      fprintf(out, "    {\n");
-      for (int x = 0; x < 256; x++) {
-        if (x % 16 == 0) {
-          fprintf(out, "      ");
-        }
-        fprintf(out, "0x%02x, ", InvTboxes[r][i][x]);
-        if (x % 16 == 15) {
-          fprintf(out, "\n");
-        }
-      }
-      fprintf(out, "    },\n");
-    }
-    fprintf(out, "  },\n");
-  }
-  fprintf(out, "};\n\n");
-
-  fprintf(out, "static const uint32_t InvTy[4][256] = {\n");
-  for (int j = 0; j < 4; j++) {
-    fprintf(out, "  {\n");
-    for (int x = 0; x < 256; x++) {
-      if ((x % 8) == 0) {
-        fprintf(out, "    ");
-      }
-      fprintf(out, "0x%08x,", InvTy[j][x]);
-      if (x > 0 && (x % 8) == 7) {
-        fprintf(out, "\n");
-      } else {
-        fprintf(out, " ");
-      }
-    }
-    fprintf(out, "  },\n");
-  }
-  fprintf(out, "};\n\n");
-}
-
-static void GenerateTables(const uint8_t key[16]) {
+void GenerateTables(const uint8_t key[16]) {
   uint32_t roundKey[44];
-  FILE* out = fopen("aes128_oracle_tables.c", "w");
+  FILE* out = fopen("aes128_oracle_tables.cc", "w");
 
   ExpandKeys(key, roundKey);
 
+  fprintf(out, "// This file is generated, do not edit.\n\n");
+  fprintf(out, "namespace {\n\n");
+
   GenerateXorTable(out);
   GenerateEncryptingTables(out, roundKey);
-  GenerateDecryptingTables(out, roundKey);
+
+  fprintf(out, "}  // namespace");
 
   fflush(out);
   fclose(out);
 }
 
-static void err_quit(const char *fmt, ...) {
+void err_quit(const char *fmt, ...) {
   va_list ap;
   char buf[1024];
 
@@ -472,13 +382,15 @@ static void err_quit(const char *fmt, ...) {
   exit(1);
 }
 
-static void read_key(const char *in, uint8_t key[16]) {
+void read_key(const char *in, uint8_t key[16]) {
   if (strlen(in) != 32)
     err_quit("Invalid key (should be a valid 128-bits hexadecimal string)");
   for (int i = 0; i < 16; i++) {
     sscanf(in + i * 2, "%2hhx", key + i);
   }
 }
+
+}  // namespace
 
 int main(int argc, char* argv[]) {
   uint8_t key[16];
