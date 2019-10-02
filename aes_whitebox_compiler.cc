@@ -366,11 +366,11 @@ void GenerateEncryptingTables(FILE* out, uint32_t* roundKey, int Nr) {
   fprintf(out, "};\n\n");
 }
 
-void GenerateTables(const char* hexKey, int keySize, int Nk, int Nr) {
-  uint8_t key[keySize];
+void GenerateTables(const char* hexKey, int Nk, int Nr) {
+  uint8_t key[Nk*4];
   uint32_t roundKey[(Nr+1)*4];
 
-  read_key(hexKey, key, keySize);
+  read_key(hexKey, key, Nk*4);
   ExpandKeys(key, roundKey, Nk, Nr);
 
   FILE* out = fopen("aes_whitebox_tables.cc", "w");
@@ -399,20 +399,24 @@ void syntax() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  int keySize, Nk, Nr;
+  int Nk, Nr;
 
   if (argc != 3) {
     syntax();
   } else if (strcmp(argv[1], "aes128") == 0) {
-    keySize = 16, Nk = 4, Nr = 10;
+    Nk = 4, Nr = 10;
   } else if (strcmp(argv[1], "aes192") == 0) {
-    keySize = 24, Nk = 6, Nr = 12;
+    Nk = 6, Nr = 12;
   } else if (strcmp(argv[1], "aes256") == 0) {
-    keySize = 32, Nk = 8, Nr = 14;
+    Nk = 8, Nr = 14;
+  } else if (strcmp(argv[1], "aes512") == 0) {
+    Nk = 16, Nr = 22;
+  } else if (strcmp(argv[1], "aes1024") == 0) {
+    Nk = 32, Nr = 38;
   } else {
     syntax();
   }
 
-  GenerateTables(argv[2], keySize, Nk, Nr);
+  GenerateTables(argv[2], Nk, Nr);
   return 0;
 }
