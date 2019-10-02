@@ -49,6 +49,6 @@ The compiler is also capable to generate AES-512 and AES-1024 tables, following 
 
 ## BGE Attack
 
-The time complexity of [Billet et al.’s key extraction attack](https://link.springer.com/chapter/10.1007/978-3-540-30564-4_16) for AES-128 is less than 2^30, while [some further optimizations](https://eprint.iacr.org/2013/450.pdf) suggest 2^22, *no matter the key size used*. On the other hand, there is no material produced to analyse the complexity of the other variations.
+The time complexity of [Billet et al.’s key extraction attack](https://link.springer.com/chapter/10.1007/978-3-540-30564-4_16) for AES-128 is less than 2^30, while [some further optimizations](https://eprint.iacr.org/2013/450.pdf) suggest 2^22. On the other hand, there is no material produced to analyse the complexity of the other variations.
 
 So, care should be taken before using this implementation in production.
