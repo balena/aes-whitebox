@@ -413,6 +413,10 @@ int main(int argc, char* argv[]) {
     Nk = 16, Nr = 22;
   } else if (strcmp(argv[1], "aes1024") == 0) {
     Nk = 32, Nr = 38;
+  } else if (strcmp(argv[1], "aes2048") == 0) {
+    Nk = 64, Nr = 70;
+  } else if (strcmp(argv[1], "aes4096") == 0) {
+    Nk = 128, Nr = 134;
   } else {
     syntax();
   }
