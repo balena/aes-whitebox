@@ -298,7 +298,7 @@ void GenerateXorTable(FILE* out, int Nr) {
   fprintf(out, "};\n\n");
 }
 
-void GenerateEncryptingTables(FILE* out, uint32_t* roundKey, int roundKeySize, int Nr) {
+void GenerateEncryptingTables(FILE* out, uint32_t* roundKey, int Nr) {
   uint32_t Tyboxes[Nr-1][16][256];
   uint8_t TboxesLast[16][256];
   uint32_t MBL[Nr-1][16][256];
@@ -366,10 +366,9 @@ void GenerateEncryptingTables(FILE* out, uint32_t* roundKey, int roundKeySize, i
   fprintf(out, "};\n\n");
 }
 
-void GenerateTables(const char* hexKey, int keySize, int roundKeySize,
-    int Nk, int Nr) {
+void GenerateTables(const char* hexKey, int keySize, int Nk, int Nr) {
   uint8_t key[keySize];
-  uint32_t roundKey[roundKeySize];
+  uint32_t roundKey[(Nr+1)*4];
 
   read_key(hexKey, key, keySize);
   ExpandKeys(key, roundKey, Nk, Nr);
@@ -385,7 +384,7 @@ void GenerateTables(const char* hexKey, int keySize, int roundKeySize,
       "\n", Nr);
 
   GenerateXorTable(out, Nr);
-  GenerateEncryptingTables(out, roundKey, roundKeySize, Nr);
+  GenerateEncryptingTables(out, roundKey, Nr);
 
   fprintf(out, "}  // namespace");
 
@@ -400,20 +399,20 @@ void syntax() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  int keySize, roundKeySize, Nk, Nr;
+  int keySize, Nk, Nr;
 
   if (argc != 3) {
     syntax();
   } else if (strcmp(argv[1], "aes128") == 0) {
-    keySize = 16, roundKeySize = 44, Nk = 4, Nr = 10;
+    keySize = 16, Nk = 4, Nr = 10;
   } else if (strcmp(argv[1], "aes192") == 0) {
-    keySize = 24, roundKeySize = 52, Nk = 6, Nr = 12;
+    keySize = 24, Nk = 6, Nr = 12;
   } else if (strcmp(argv[1], "aes256") == 0) {
-    keySize = 32, roundKeySize = 60, Nk = 8, Nr = 14;
+    keySize = 32, Nk = 8, Nr = 14;
   } else {
     syntax();
   }
 
-  GenerateTables(argv[2], keySize, roundKeySize, Nk, Nr);
+  GenerateTables(argv[2], keySize, Nk, Nr);
   return 0;
 }
