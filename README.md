@@ -20,7 +20,7 @@ External encodings were not implemented, but these are easy to apply if needed.
 ## How to use
 
 - `aes.cc`, `aes.h` and `aes_private.h` implement the standard AES-{128,192,256} encryption, used only as a reference and can be easily removed from the final build.
-- `aes_whitebox_compiler.cc` contains the AES-{128,192,256} 'compiler' (the tool that generates the WBC tables), that generates the `aes_whitebox_tables.cc` file that contains the cipher tables.
+- `aes_whitebox_compiler.cc` contains the AES 'compiler', that generates the `aes_whitebox_tables.cc` file that contains the cipher tables.
 - `aes_whitebox.h` and `aes_whitebox.cc` contain the AES implementation that consumes the `aes_whitebox_tables.cc`.
 
 So for a final build, you must (1) compile the `aes_whitebox_compiler` tool, (2) generate the `aes_whitebox_tables.cc` source file using it and add `aes_whitebox.h` together with `aes_whitebox.cc` to the final build.
@@ -47,6 +47,6 @@ Internally the code will manage to use the embedded AES-128, AES-192 or AES-256 
 
 ## BGE Attack
 
-The time complexity of [Billet et al.’s key extraction attack](https://link.springer.com/chapter/10.1007/978-3-540-30564-4_16) is less than 2^30, while [some further optimizations](https://eprint.iacr.org/2013/450.pdf) suggest 2^22.
+The time complexity of [Billet et al.’s key extraction attack](https://link.springer.com/chapter/10.1007/978-3-540-30564-4_16) is less than 2^30, while [some further optimizations](https://eprint.iacr.org/2013/450.pdf) suggest 2^22, *no matter the key size used*.
 
 So, care should be taken before using this implementation in production.
