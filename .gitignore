@@ -1,7 +1,9 @@
 *.o
 *.a
 aes128_tests
-aes128_oracle_gen
-aes128_oracle_tables.cc
+aes192_tests
+aes256_tests
+aes_whitebox_compiler
+aes_whitebox_tables.cc
 *.sw[po]
 vgcore.*

@@ -1,10 +1,10 @@
-// Copyright 2019 AES-128 WBC Authors. All rights reserved.
+// Copyright 2019 AES WBC Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "aes128_oracle.h"
+#include "aes_whitebox.h"
 
-#include "aes128_oracle_tables.cc"
+#include "aes_whitebox_tables.cc"
 
 namespace {
 
@@ -30,7 +30,7 @@ void ShiftRows(uint8_t state[16]) {
 void Cipher(uint8_t in[16]) {
   // Perform the necessary number of rounds. The round key is added first.
   // The last round does not perform the MixColumns step.
-  for (int r = 0; r < 9; r++) {
+  for (int r = 0; r < Nr-1; r++) {
     ShiftRows(in);
 
     // Using T-boxes + Ty(i) Tables (single step):
@@ -102,14 +102,14 @@ void Cipher(uint8_t in[16]) {
 
   // Using T-boxes:
   for (int i = 0; i < 16; i++)
-    in[i] = Tboxes10[i][in[i]];
+    in[i] = TboxesLast[i][in[i]];
 }
 
 }  // namespace
 
 extern "C" {
 
-void aes128_oracle_encrypt_cfb(const uint8_t iv[16], const uint8_t* m,
+void aes_whitebox_encrypt_cfb(const uint8_t iv[16], const uint8_t* m,
     size_t len, uint8_t* c) {
   uint8_t cfb_blk[16];
 
@@ -124,7 +124,7 @@ void aes128_oracle_encrypt_cfb(const uint8_t iv[16], const uint8_t* m,
   }
 }
 
-void aes128_oracle_decrypt_cfb(const uint8_t iv[16], const uint8_t* c,
+void aes_whitebox_decrypt_cfb(const uint8_t iv[16], const uint8_t* c,
     size_t len, uint8_t* m) {
   uint8_t cfb_blk[16];
 
@@ -139,7 +139,7 @@ void aes128_oracle_decrypt_cfb(const uint8_t iv[16], const uint8_t* c,
   }
 }
 
-void aes128_oracle_encrypt_ofb(const uint8_t iv[16], const uint8_t* m,
+void aes_whitebox_encrypt_ofb(const uint8_t iv[16], const uint8_t* m,
     size_t len, uint8_t* c) {
   uint8_t cfb_blk[16];
 
@@ -153,12 +153,12 @@ void aes128_oracle_encrypt_ofb(const uint8_t iv[16], const uint8_t* m,
   }
 }
 
-void aes128_oracle_decrypt_ofb(const uint8_t iv[16], const uint8_t* c,
+void aes_whitebox_decrypt_ofb(const uint8_t iv[16], const uint8_t* c,
     size_t len, uint8_t* m) {
-  aes128_oracle_encrypt_ofb(iv, c, len, m);
+  aes_whitebox_encrypt_ofb(iv, c, len, m);
 }
 
-void aes128_oracle_encrypt_ctr(const uint8_t nonce[16], const uint8_t* m,
+void aes_whitebox_encrypt_ctr(const uint8_t nonce[16], const uint8_t* m,
     size_t len, uint8_t* c) {
   uint8_t counter[16], buf[16];
 
@@ -180,9 +180,9 @@ void aes128_oracle_encrypt_ctr(const uint8_t nonce[16], const uint8_t* m,
   }
 }
 
-void aes128_oracle_decrypt_ctr(const uint8_t nonce[16], const uint8_t* c,
+void aes_whitebox_decrypt_ctr(const uint8_t nonce[16], const uint8_t* c,
     size_t len, uint8_t* m) {
-  aes128_oracle_encrypt_ctr(nonce, c, len, m);
+  aes_whitebox_encrypt_ctr(nonce, c, len, m);
 }
 
 }  // extern "C"

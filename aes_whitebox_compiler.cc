@@ -1,4 +1,4 @@
-// Copyright 2019 AES-128 WBC Authors. All rights reserved.
+// Copyright 2019 AES WBC Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -10,9 +10,32 @@
 
 #include <NTL/mat_GF2.h>
 
-#include "aes128_private.h"
+#include "aes_private.h"
 
 namespace {
+
+void err_quit(const char *fmt, ...) {
+  va_list ap;
+  char buf[1024];
+
+  va_start(ap, fmt);
+  vsprintf(buf, fmt, ap);
+  strcat(buf, "\n");
+  fputs(buf, stderr);
+  fflush(stderr);
+  va_end(ap);
+
+  exit(1);
+}
+
+void read_key(const char *in, uint8_t* key, size_t size) {
+  if (strlen(in) != size << 1)
+    err_quit("Invalid key (should be a valid %d-bits hexadecimal string)",
+        (size == 16) ? 128 : ((size == 24) ? 192 : 256));
+  for (size_t i = 0; i < size; i++) {
+    sscanf(in + i * 2, "%2hhx", key + i);
+  }
+}
 
 template<typename T>
 inline NTL::vec_GF2 from_scalar(T in);
@@ -85,27 +108,11 @@ NTL::mat_GF2 GenerateRandomGF2InvertibleMatrix(int dimension) {
   }
 }
 
-void Generate8x8MixingBijections(NTL::mat_GF2 L[9][16]) {
-  for (int r = 0; r < 9; r++) {
-    for (int i = 0; i < 16; i++) {
-      L[r][i] = GenerateRandomGF2InvertibleMatrix(8);
-    }
-  }
-}
-
-void Generate32x32MixingBijections(NTL::mat_GF2 MB[9][4]) {
-  for (int r = 0; r < 9; r++) {
-    for (int i = 0; i < 4; i++) {
-      MB[r][i] = GenerateRandomGF2InvertibleMatrix(32);
-    }
-  }
-}
-
 // Calculate the T-boxes, which is a combination of the AddRoundKeyAfterShift
 // and the SubBytes functions.
-void CalculateTboxes(const uint32_t roundKey[44],
-    uint8_t Tboxes[10][16][256]) {
-  for (int r = 0; r < 10; r++) {
+void CalculateTboxes(const uint32_t roundKey[],
+    uint8_t Tboxes[][16][256], int Nr) {
+  for (int r = 0; r < Nr; r++) {
     for (int x = 0; x < 256; x++) {
       uint8_t state[16] = {
         (uint8_t)x, (uint8_t)x, (uint8_t)x, (uint8_t)x,
@@ -115,8 +122,8 @@ void CalculateTboxes(const uint32_t roundKey[44],
       };
       AddRoundKeyAfterShift(state, &roundKey[r*4]);
       SubBytes(state);
-      if (r == 9) {
-        AddRoundKey(state, &roundKey[40]);
+      if (r == Nr-1) {
+        AddRoundKey(state, &roundKey[4*Nr]);
       }
       for (int i = 0; i < 16; i++) {
         Tboxes[r][i][x] = state[i];
@@ -149,16 +156,16 @@ void CalculateTy(uint8_t Ty[4][256][4]) {
   }
 }
 
-void CalculateTyBoxes(uint32_t roundKey[44],
-    uint32_t Tyboxes[9][16][256], uint8_t Tboxes10[16][256],
-    uint32_t MBL[9][16][256], bool enableL, bool enableMB) {
-  uint8_t Tboxes[10][16][256];
+void CalculateTyBoxes(uint32_t roundKey[],
+    uint32_t Tyboxes[][16][256], uint8_t TboxesLast[16][256],
+    uint32_t MBL[][16][256], bool enableL, bool enableMB, int Nr) {
+  uint8_t Tboxes[Nr][16][256];
   uint8_t Ty[4][256][4];
 
-  CalculateTboxes(roundKey, Tboxes);
+  CalculateTboxes(roundKey, Tboxes, Nr);
   CalculateTy(Ty);
 
-  for (int r = 0; r < 9; r++) {
+  for (int r = 0; r < Nr-1; r++) {
     for (int x = 0; x < 256; x++) {
       for (int j = 0; j < 4; j++) {
         for (int i = 0; i < 4; i++) {
@@ -175,19 +182,23 @@ void CalculateTyBoxes(uint32_t roundKey[44],
 
   for (int x = 0; x < 256; x++) {
     for (int i = 0; i < 16; i++) {
-      Tboxes10[i][x] = Tboxes[9][i][x];
+      TboxesLast[i][x] = Tboxes[Nr-1][i][x];
     }
   }
 
   if (enableMB) {
-    NTL::mat_GF2 MB[9][4];
-    Generate32x32MixingBijections(MB);
+    NTL::mat_GF2 MB[Nr-1][4];
+    for (int r = 0; r < Nr-1; r++) {
+      for (int i = 0; i < 4; i++) {
+        MB[r][i] = GenerateRandomGF2InvertibleMatrix(32);
+      }
+    }
 
     // When applying MB and inv(MB), the operation is quite easy; there is no
     // need to safeguard the existing table, as it is a simple substitution. 
-    for (int r = 0; r < 9; r++) {
+    for (int r = 0; r < Nr-1; r++) {
       for (int x = 0; x < 256; x++) {
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 16; i++) {
           Tyboxes[r][i][x] = mul<uint32_t>(MB[r][i >> 2], Tyboxes[r][i][x]);
           MBL[r][i][x] = mul<uint32_t>(NTL::inv(MB[r][i >> 2]), MBL[r][i][x]);
         }
@@ -196,16 +207,20 @@ void CalculateTyBoxes(uint32_t roundKey[44],
   }
 
   if (enableL) {
-    NTL::mat_GF2 L[9][16];
-    Generate8x8MixingBijections(L);
+    NTL::mat_GF2 L[Nr-1][16];
+    for (int r = 0; r < Nr-1; r++) {
+      for (int i = 0; i < 16; i++) {
+        L[r][i] = GenerateRandomGF2InvertibleMatrix(8);
+      }
+    }
 
     // When applying L and inv(L), things get a little tricky. As it involves
     // non-linear substitutions, the original table has to be copied before
     // being updated.
-    for (int r = 0; r < 9; r++) {
+    for (int r = 0; r < Nr-1; r++) {
       
       if (r > 0) {
-        // Rounds 1 to 8 are reversed here.
+        // Rounds 1 to Nr-1 are reversed here.
         for (int i = 0; i < 16; i++) {
           uint32_t oldTyboxes[256];
           for (int x = 0; x < 256; x++)
@@ -248,25 +263,25 @@ void CalculateTyBoxes(uint32_t roundKey[44],
   
     // The last and final round 9 is reversed here.
     for (int i = 0; i < 16; i++) {
-      uint8_t oldTboxes10[256];
+      uint8_t oldTboxesLast[256];
       for (int x = 0; x < 256; x++)
-        oldTboxes10[x] = Tboxes10[i][x];
+        oldTboxesLast[x] = TboxesLast[i][x];
       for (int x = 0; x < 256; x++)
-        Tboxes10[i][x] = oldTboxes10[mul<uint8_t>(NTL::inv(L[8][i]), x)];
+        TboxesLast[i][x] = oldTboxesLast[mul<uint8_t>(NTL::inv(L[Nr-2][i]), x)];
     }
   }
 }
 
-void GenerateXorTable(FILE* out) {
-  uint8_t Xor[9][96][16][16];
-  for (int r = 0; r < 9; r++)
+void GenerateXorTable(FILE* out, int Nr) {
+  uint8_t Xor[Nr-1][96][16][16];
+  for (int r = 0; r < Nr-1; r++)
     for (int n = 0; n < 96; n++)
       for (int i = 0; i < 16; i++)
         for (int j = 0; j < 16; j++)
           Xor[r][n][i][j] = i ^ j;
 
-  fprintf(out, "constexpr uint8_t Xor[9][96][16][16] = {\n");
-  for (int r = 0; r < 9; r++) {
+  fprintf(out, "constexpr uint8_t Xor[%d][96][16][16] = {\n", Nr-1);
+  for (int r = 0; r < Nr-1; r++) {
     fprintf(out, "  {\n");
     for (int n = 0; n < 96; n++) {
       fprintf(out, "    {\n");
@@ -283,15 +298,15 @@ void GenerateXorTable(FILE* out) {
   fprintf(out, "};\n\n");
 }
 
-void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
-  uint32_t Tyboxes[9][16][256];
-  uint8_t Tboxes10[16][256];
-  uint32_t MBL[9][16][256];
+void GenerateEncryptingTables(FILE* out, uint32_t* roundKey, int roundKeySize, int Nr) {
+  uint32_t Tyboxes[Nr-1][16][256];
+  uint8_t TboxesLast[16][256];
+  uint32_t MBL[Nr-1][16][256];
 
-  CalculateTyBoxes(roundKey, Tyboxes, Tboxes10, MBL, true, true);
+  CalculateTyBoxes(roundKey, Tyboxes, TboxesLast, MBL, true, true, Nr);
 
-  fprintf(out, "constexpr uint32_t Tyboxes[9][16][256] = {\n");
-  for (int r = 0; r < 9; r++) {
+  fprintf(out, "constexpr uint32_t Tyboxes[%d][16][256] = {\n", Nr-1);
+  for (int r = 0; r < Nr-1; r++) {
     fprintf(out, "  {\n");
     for (int i = 0; i < 16; i++) {
       fprintf(out, "    {\n");
@@ -312,14 +327,14 @@ void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
   }
   fprintf(out, "};\n\n");
 
-  fprintf(out, "constexpr uint8_t Tboxes10[16][256] = {\n");
+  fprintf(out, "constexpr uint8_t TboxesLast[16][256] = {\n");
   for (int i = 0; i < 16; i++) {
     fprintf(out, "  {\n");
     for (int x = 0; x < 256; x++) {
       if (x % 16 == 0) {
         fprintf(out, "    ");
       }
-      fprintf(out, "0x%02x, ", Tboxes10[i][x]);
+      fprintf(out, "0x%02x, ", TboxesLast[i][x]);
       if (x % 16 == 15) {
         fprintf(out, "\n");
       }
@@ -328,8 +343,8 @@ void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
   }
   fprintf(out, "};\n\n");
 
-  fprintf(out, "constexpr uint32_t MBL[9][16][256] = {\n");
-  for (int r = 0; r < 9; r++) {
+  fprintf(out, "constexpr uint32_t MBL[%d][16][256] = {\n", Nr-1);
+  for (int r = 0; r < Nr-1; r++) {
     fprintf(out, "  {\n");
     for (int i = 0; i < 16; i++) {
       fprintf(out, "    {\n");
@@ -351,17 +366,26 @@ void GenerateEncryptingTables(FILE* out, uint32_t roundKey[44]) {
   fprintf(out, "};\n\n");
 }
 
-void GenerateTables(const uint8_t key[16]) {
-  uint32_t roundKey[44];
-  FILE* out = fopen("aes128_oracle_tables.cc", "w");
+void GenerateTables(const char* hexKey, int keySize, int roundKeySize,
+    int Nk, int Nr) {
+  uint8_t key[keySize];
+  uint32_t roundKey[roundKeySize];
 
-  ExpandKeys(key, roundKey);
+  read_key(hexKey, key, keySize);
+  ExpandKeys(key, roundKey, Nk, Nr);
 
-  fprintf(out, "// This file is generated, do not edit.\n\n");
-  fprintf(out, "namespace {\n\n");
+  FILE* out = fopen("aes_whitebox_tables.cc", "w");
 
-  GenerateXorTable(out);
-  GenerateEncryptingTables(out, roundKey);
+  fprintf(out,
+      "// This file is generated, do not edit.\n"
+      "\n"
+      "namespace {\n"
+      "\n"
+      "constexpr int Nr = %d;\n"
+      "\n", Nr);
+
+  GenerateXorTable(out, Nr);
+  GenerateEncryptingTables(out, roundKey, roundKeySize, Nr);
 
   fprintf(out, "}  // namespace");
 
@@ -369,37 +393,27 @@ void GenerateTables(const uint8_t key[16]) {
   fclose(out);
 }
 
-void err_quit(const char *fmt, ...) {
-  va_list ap;
-  char buf[1024];
-
-  va_start(ap, fmt);
-  vsprintf(buf, fmt, ap);
-  strcat(buf, "\n");
-  fputs(buf, stderr);
-  fflush(stderr);
-  va_end(ap);
-
-  exit(1);
-}
-
-void read_key(const char *in, uint8_t key[16]) {
-  if (strlen(in) != 32)
-    err_quit("Invalid key (should be a valid 128-bits hexadecimal string)");
-  for (int i = 0; i < 16; i++) {
-    sscanf(in + i * 2, "%2hhx", key + i);
-  }
+void syntax() {
+  err_quit("Syntax: aes_whitebox_gen <aes128|aes192|aes256> <hex-key>");
 }
 
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  uint8_t key[16];
+  int keySize, roundKeySize, Nk, Nr;
 
-  if (argc != 2)
-    err_quit("Syntax: aes128_oracle_gen <AES-128-hex-key>");
+  if (argc != 3) {
+    syntax();
+  } else if (strcmp(argv[1], "aes128") == 0) {
+    keySize = 16, roundKeySize = 44, Nk = 4, Nr = 10;
+  } else if (strcmp(argv[1], "aes192") == 0) {
+    keySize = 24, roundKeySize = 52, Nk = 6, Nr = 12;
+  } else if (strcmp(argv[1], "aes256") == 0) {
+    keySize = 32, roundKeySize = 60, Nk = 8, Nr = 14;
+  } else {
+    syntax();
+  }
 
-  read_key(argv[1], key);
-  GenerateTables(key);
+  GenerateTables(argv[2], keySize, roundKeySize, Nk, Nr);
   return 0;
 }

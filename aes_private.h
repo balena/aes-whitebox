@@ -1,14 +1,11 @@
-// Copyright 2019 AES-128 WBC Authors. All rights reserved.
+// Copyright 2019 AES WBC Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef AES128_PRIVATE_H_
-#define AES128_PRIVATE_H_
+#ifndef AES_PRIVATE_H_
+#define AES_PRIVATE_H_
 
 namespace {
-
-/* The least significant byte of the word is rotated to the end. */
-#define KE_ROTWORD(x) (((x) << 8) | ((x) >> 24))
 
 // This is the specified AES SBox. To look up a substitution value, put the first
 // nibble in the first index (row) and the second nibble in the second index (column).
@@ -246,13 +243,18 @@ constexpr uint32_t SubWord(uint32_t word) {
        + (int)(Sbox[(word >> 28) & 0x0000000f][(word >> 24) & 0x0000000f] << 24);
 }
 
+// The least significant byte of the word is rotated to the end.
+constexpr uint32_t RotWord(uint32_t x) {
+  return (x << 8) | (x >> 24);
+}
+
 // Performs the action of generating the keys that will be used in every round
 // of encryption. "key" is the user-supplied input key, "w" is the output key
 // schedule.
-inline void ExpandKeys(const uint8_t key[16],
-    uint32_t w[44]) {
-  int Nb = 4, Nr = 10, Nk = 4, i = 0;
-  uint32_t temp = 0, Rcon[] = {
+inline void ExpandKeys(const uint8_t* key,
+    uint32_t* w, int Nk, int Nr) {
+  constexpr int Nb = 4;
+  constexpr uint32_t Rcon[] = {
     0x01000000, 0x02000000, 0x04000000,
     0x08000000, 0x10000000, 0x20000000,
     0x40000000, 0x80000000, 0x1b000000,
@@ -260,15 +262,17 @@ inline void ExpandKeys(const uint8_t key[16],
     0xab000000, 0x4d000000, 0x9a000000
   };
 
-  for (i = 0; i < Nk; ++i) {
-    w[i] = ((key[4 * i]) << 24) | ((key[4 * i + 1]) << 16) |
-           ((key[4 * i + 2]) << 8) | ((key[4 * i + 3]));
+  for (int i = 0; i < Nk; ++i) {
+    w[i] = ((key[4 * i + 0]) << 24)
+         | ((key[4 * i + 1]) << 16)
+         | ((key[4 * i + 2]) <<  8)
+         | ((key[4 * i + 3]) <<  0);
   }
 
-  for (i = Nk; i < Nb * (Nr+1); ++i) {
-    temp = w[i - 1];
+  for (int i = Nk; i < Nb * (Nr+1); ++i) {
+    uint32_t temp = w[i - 1];
     if ((i % Nk) == 0)
-      temp = SubWord(KE_ROTWORD(temp)) ^ Rcon[(i-1)/Nk];
+      temp = SubWord(RotWord(temp)) ^ Rcon[(i-1)/Nk];
     else if (Nk > 6 && (i % Nk) == 4)
       temp = SubWord(temp);
     w[i] = w[i-Nk] ^ temp;
@@ -277,4 +281,4 @@ inline void ExpandKeys(const uint8_t key[16],
 
 }  // namespace
 
-#endif  // AES128_PRIVATE_H_
+#endif  // AES_PRIVATE_H_

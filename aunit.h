@@ -11,7 +11,7 @@
 #define au_end printf("\n   \033[36m%u\033[0m tests run - ", au_tests_run); if (au_tests_failed == 0) { puts("\033[32mall tests passed\033[0m\n"); return 0; } else { printf("\033[31;1m%u test(s) failed\n\033[0m\n", au_tests_failed); return 1; }
 
 // If you are using a standalone unit test file with no main(), use these macros.
-#define au_main int main() { au_init
+#define au_main int main(int argc, char* argv[]) { au_init
 #define au_endmain au_end }
 
 // The most general test, if nothing else fits. Takes an expression, and evals.
