@@ -44,7 +44,7 @@ libaes.a: aes.o
 	$(AR) $(ARFLAGS) $@ $^
 
 aes_whitebox_compiler: aes_whitebox_compiler.o
-	$(CXX) $(LDFLAGS) -lntl $^ -o $@
+	$(CXX) $(LDFLAGS) $^ -o $@ -lntl
 
 aes128_tests: aes_whitebox_compiler
 	./aes_whitebox_compiler aes128 $(AES128_KEY)

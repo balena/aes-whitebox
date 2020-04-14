@@ -1,0 +1,9 @@
+*.o
+aes128_tests
+aes192_tests
+aes256_tests
+aes_whitebox_compiler
+Dockerfile
+.git
+.gitignore
+.dockerfile
