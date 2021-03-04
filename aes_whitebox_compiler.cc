@@ -399,7 +399,7 @@ void syntax() {
 }  // namespace
 
 int main(int argc, char* argv[]) {
-  int Nk, Nr;
+  int Nk = 0, Nr = 0;
 
   if (argc != 3) {
     syntax();

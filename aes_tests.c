@@ -52,9 +52,9 @@ au_main
   uint8_t plain[4*16], iv_or_nonce[16], cipher[4*16], output[4*16];
 
   void (*encrypt)(const uint8_t iv[16], const uint8_t* m,
-      size_t len, uint8_t* c);
+      size_t len, uint8_t* c) = NULL;
   void (*decrypt)(const uint8_t iv[16], const uint8_t* m,
-      size_t len, uint8_t* c);
+      size_t len, uint8_t* c) = NULL;
 
   read_hex(argv[2], plain, 4*16, "plain");
   read_hex(argv[3], iv_or_nonce, 16, "iv-or-nonce");
